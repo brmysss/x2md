@@ -642,8 +642,9 @@ test("链接卡片写入 Markdown 信息块", () => {
   assert.match(content, /> \[!info\] 链接卡片/);
   assert.match(content, /> \*\*链接标题\*\*/);
   assert.match(content, /> 链接摘要/);
-  assert.match(content, /> example.com/);
-  assert.match(content, /> https:\/\/example.com\/post/);
+  assert.match(content, /> \[example.com\]\(https:\/\/example.com\/post\)/);
+  assert.doesNotMatch(content, /> example.com\n/);
+  assert.doesNotMatch(content, /> https:\/\/example.com\/post\n/);
 });
 
 

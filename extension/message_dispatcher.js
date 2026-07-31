@@ -93,6 +93,7 @@
             open_options: async () => { await deps.openOptions(); return { success: true }; },
             save_tweet: (message) => captureAndSave(message, deps),
             force_save_tweet: (message) => deps.save(deps.applyTranslationOverride(message.data || {})),
+            download_video: (message, sender) => deps.downloadVideo(message.data || {}, sender),
             translate_tweet: async (message) => {
                 const id = message.data?.tweetId || String(message.data?.url || "").match(/\/status\/(\d+)/)?.[1] || "";
                 const result = await deps.translateTweet(id);
@@ -144,7 +145,7 @@
             },
         };
 
-        return async function dispatch(message = {}) {
+        return async function dispatch(message = {}, sender = {}) {
             const handler = handlers[message.action];
             if (!handler) {
                 return {
@@ -154,7 +155,7 @@
                 };
             }
             try {
-                return await handler(message);
+                return await handler(message, sender);
             } catch (error) {
                 return errorResponse(error);
             }

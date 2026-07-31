@@ -452,6 +452,7 @@
                 document.querySelectorAll(BOOKMARK_SELECTORS).forEach(attachBookmarkListener);
                 X2MDXTranslationUI.mount();
                 X2MDXTranslationUI.schedule();
+                X2MDXVideoDownload.mount();
                 ensureXProfileCaptureButton();
                 ensureBookmarksToolbar();
             }

@@ -1,6 +1,7 @@
 /* X2MD service-worker entry: dependency loading and startup only. */
 importScripts(
     "media_helpers.js",
+    "video_download_helpers.js",
     "twitter_graphql.js",
     "x-enrichment.js",
     "translation_helpers.js",

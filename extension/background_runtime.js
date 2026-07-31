@@ -1,6 +1,32 @@
 (function (root) {
     "use strict";
 
+    const TRANSLATION_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+    const TRANSLATION_MAX_ATTEMPTS = 3;
+    const TRANSLATION_RETRY_BASE_MS = 1200;
+    const TRANSLATION_MIN_INTERVAL_MS = 800;
+    let translationRequestNextAt = 0;
+    let translationRequestChain = Promise.resolve();
+
+    function getTranslationRetryDelay(response, attempt) {
+        const retryAfterHeader = response?.headers?.get?.("retry-after");
+        const retryAfter = retryAfterHeader === null || retryAfterHeader === undefined || retryAfterHeader === ""
+            ? NaN
+            : Number(retryAfterHeader);
+        if (Number.isFinite(retryAfter) && retryAfter >= 0) return Math.min(retryAfter * 1000, 10000);
+        return Math.min(TRANSLATION_RETRY_BASE_MS * (2 ** attempt), 10000);
+    }
+
+    function waitForTranslationRequestSlot() {
+        const next = translationRequestChain.then(async () => {
+            const waitMs = Math.max(0, translationRequestNextAt - Date.now());
+            if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+            translationRequestNextAt = Date.now() + TRANSLATION_MIN_INTERVAL_MS;
+        });
+        translationRequestChain = next.catch(() => {});
+        return next;
+    }
+
     function start() {
         const localClient = X2MDLocalClient.createLocalClient();
         const xEnrichment = X2MDXEnrichment;
@@ -24,6 +50,16 @@
             return fallback.length ? fallback[0].value : null;
         }
 
+        async function fetchTranslationWithBackoff(url, options) {
+            for (let attempt = 0; attempt < TRANSLATION_MAX_ATTEMPTS; attempt++) {
+                await waitForTranslationRequestSlot();
+                const response = await fetch(url, options);
+                if (!TRANSLATION_RETRYABLE_STATUS.has(response.status) || attempt === TRANSLATION_MAX_ATTEMPTS - 1) return response;
+                await new Promise((resolve) => setTimeout(resolve, getTranslationRetryDelay(response, attempt)));
+            }
+            throw new Error("translation request exhausted retries");
+        }
+
         async function fetchGrokTranslation(tweetId) {
             const id = String(tweetId || "").match(/\d+/)?.[0] || "";
             if (!id) {
@@ -35,7 +71,7 @@
                 throw new Error("missing ct0 cookie");
             }
 
-            const resp = await fetch("https://api.x.com/2/grok/translation.json", {
+            const resp = await fetchTranslationWithBackoff("https://api.x.com/2/grok/translation.json", {
                 method: "POST",
                 credentials: "include",
                 headers: {
@@ -121,7 +157,7 @@
                 const apiUrl = "https://translate.googleapis.com/translate_a/single"
                     + "?client=gtx&sl=auto&tl=zh-CN&dt=t&q="
                     + encodeURIComponent(chunk);
-                const resp = await fetch(apiUrl);
+                const resp = await fetchTranslationWithBackoff(apiUrl);
                 if (!resp.ok) {
                     throw new Error(`plain text translation failed: ${resp.status}`);
                 }
@@ -509,11 +545,61 @@
             return parsed;
         }
 
+        function isAllowedTwitterUrl(value) {
+            try {
+                const url = new URL(String(value || ""));
+                return url.protocol === "https:" && (url.hostname === "x.com" || url.hostname.endsWith(".x.com") || url.hostname === "twitter.com" || url.hostname.endsWith(".twitter.com"));
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function isAllowedVideoUrl(value) {
+            try {
+                const url = new URL(String(value || ""));
+                return url.protocol === "https:" && url.hostname === "video.twimg.com" && !url.username && !url.password;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        async function downloadVideo(data = {}, sender = {}) {
+            if (sender?.id && chrome.runtime.id && sender.id !== chrome.runtime.id) throw new Error("下载请求来源无效");
+            if (!isAllowedTwitterUrl(sender?.tab?.url)) throw new Error("下载请求来源无效");
+            if (data.tweet_url && !isAllowedTwitterUrl(data.tweet_url)) throw new Error("推文地址无效");
+
+            let source = String(data.video_url || "").trim();
+            let enriched = data;
+            if (!isAllowedVideoUrl(source) && data.tweet_url) {
+                enriched = await xEnrichment.enrich("tweet", { url: data.tweet_url });
+                source = String(enriched?.videos?.[0] || "").trim();
+            }
+            if (!isAllowedVideoUrl(source)) {
+                throw new Error("未找到可下载的视频地址");
+            }
+
+            const filename = buildVideoDownloadFilename(data.text || enriched.text || "");
+            const downloadId = await new Promise((resolve, reject) => {
+                chrome.downloads.download({
+                    url: source,
+                    filename,
+                    saveAs: false,
+                    conflictAction: "uniquify",
+                }, (id) => {
+                    const runtimeError = chrome.runtime.lastError;
+                    if (runtimeError) reject(new Error(runtimeError.message));
+                    else resolve(id);
+                });
+            });
+            return { success: true, downloadId, filename };
+        }
+
         let jobClient;
         const dispatchMessage = X2MDMessageDispatcher.createMessageDispatcher({
             getConfig: () => localClient.request(`/config`),
             enrich: (mode, data) => xEnrichment.enrich(mode, data),
             save: saveCapturePayload,
+            downloadVideo,
             applyCustomSavePath: applyCustomSavePathSelection,
             applyTranslationOverride: applyTranslationOverrideToData,
             translateTweet: fetchGrokTranslation,
@@ -564,4 +650,5 @@
     }
 
     root.X2MDBackgroundRuntime = { start };
+    if (typeof module !== "undefined" && module.exports) module.exports = { getTranslationRetryDelay };
 })(typeof globalThis !== "undefined" ? globalThis : this);

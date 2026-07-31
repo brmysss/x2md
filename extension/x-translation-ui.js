@@ -20,7 +20,8 @@
     const X_INLINE_ACTIONS_CONTAINER_CLASS = "__x2md_x_inline_actions_container";
     const X_INLINE_TRANSLATION_STATUS_CLASS = "__x2md_x_inline_translation_status";
     const X_AUTO_TRANSLATE_LONG_PRESS_MS = 650;
-    const X_AUTO_TRANSLATE_MAX_CONCURRENCY = 2;
+    const X_AUTO_TRANSLATE_MAX_CONCURRENCY = 1;
+    const X_AUTO_TRANSLATE_MIN_INTERVAL_MS = 800;
     const X_NATIVE_TRANSLATE_LABELS = [
         "显示翻译",
         "翻译帖子",
@@ -49,6 +50,8 @@
     const xAutoTranslateQueuedKeys = new Set();
     const xAutoTranslateQueue = [];
     let xAutoTranslateActiveCount = 0;
+    let xAutoTranslateLastStartedAt = 0;
+    let xAutoTranslateDrainTimer = null;
 
     function findFirstStatusUrl(container) {
         const links = container?.querySelectorAll?.('a[href*="/status/"]') || [];
@@ -105,6 +108,12 @@
             return !!getTwitterArticleBodyContainer(ctx);
         }
         return isNotePageUrl() || !!getTwitterArticleBodyContainer(document);
+    }
+
+    function isTwitterDetailOrArticlePage(locationLike = globalScope.location) {
+        const pathname = String(locationLike?.pathname || "");
+        return /\/status\/\d+(?:$|[/?])/.test(pathname) ||
+            /^\/(?:i\/article|[^/]+\/article)\/\d+(?:$|[/?])/.test(pathname);
     }
 
     function findVisibleTranslationBlock(scope = document) {
@@ -1485,10 +1494,29 @@
         drainAutoTranslateQueue();
     }
 
+    function clearAutoTranslateQueue() {
+        xAutoTranslateQueue.length = 0;
+        xAutoTranslateQueuedKeys.clear();
+    }
+
     function drainAutoTranslateQueue() {
+        if (!xAutoTranslateEnabled || !isTwitterDetailOrArticlePage() || xAutoTranslateDrainTimer || !xAutoTranslateQueue.length) return;
         while (xAutoTranslateActiveCount < X_AUTO_TRANSLATE_MAX_CONCURRENCY && xAutoTranslateQueue.length) {
+            const waitMs = Math.max(0, X_AUTO_TRANSLATE_MIN_INTERVAL_MS - (Date.now() - xAutoTranslateLastStartedAt));
+            if (waitMs > 0) {
+                xAutoTranslateDrainTimer = setTimeout(() => {
+                    xAutoTranslateDrainTimer = null;
+                    if (!xAutoTranslateEnabled || !isTwitterDetailOrArticlePage()) {
+                        clearAutoTranslateQueue();
+                        return;
+                    }
+                    drainAutoTranslateQueue();
+                }, waitMs);
+                return;
+            }
             const item = xAutoTranslateQueue.shift();
             xAutoTranslateActiveCount++;
+            xAutoTranslateLastStartedAt = Date.now();
             translateScopeInline(item.scope, { force: false, auto: true })
                 .then((state) => {
                     if (state === "translated" || state === "cached") xAutoTranslateDoneKeys.add(item.key);
@@ -1506,10 +1534,19 @@
 
     function scheduleAutoTranslateLoadedContent() {
         if (!xAutoTranslateEnabled || xAutoTranslateScheduled || !isTwitterLikePage()) return;
+        if (!isTwitterDetailOrArticlePage()) {
+            xAutoTranslateEnabled = false;
+            clearAutoTranslateQueue();
+            return;
+        }
         xAutoTranslateScheduled = true;
         setTimeout(() => {
             xAutoTranslateScheduled = false;
-            if (!xAutoTranslateEnabled) return;
+            if (!xAutoTranslateEnabled || !isTwitterDetailOrArticlePage()) {
+                xAutoTranslateEnabled = false;
+                clearAutoTranslateQueue();
+                return;
+            }
             if (isTwitterArticleTranslationScope(document)) {
                 enqueueAutoTranslateScope(document);
             }
@@ -1526,6 +1563,8 @@
             return;
         }
         xAutoTranslateEnabled = true;
+        xAutoTranslateDoneKeys.clear();
+        clearAutoTranslateQueue();
         showToast("已开启自动翻译：正在处理正文和已加载评论…", "loading", 2600);
         scheduleAutoTranslateLoadedContent();
     }
@@ -1554,15 +1593,21 @@
             if (span) span.style.background = "transparent";
         });
         let longPressTimer = null;
+        let activePointerId = null;
         const clearLongPressTimer = () => {
             if (longPressTimer) clearTimeout(longPressTimer);
             longPressTimer = null;
+            activePointerId = null;
         };
         btn.addEventListener("pointerdown", (event) => {
+            if (event.isTrusted === false) return;
             clearLongPressTimer();
+            activePointerId = event.pointerId;
             btn.__x2md_long_press_fired = false;
+            try { btn.setPointerCapture?.(event.pointerId); } catch (error) { }
             longPressTimer = setTimeout(() => {
                 btn.__x2md_long_press_fired = true;
+                longPressTimer = null;
                 try {
                     event.preventDefault();
                     event.stopPropagation();
@@ -1570,8 +1615,14 @@
                 enableAutoTranslateMode();
             }, X_AUTO_TRANSLATE_LONG_PRESS_MS);
         }, true);
-        ["pointerup", "pointerleave", "pointercancel"].forEach((eventName) => {
-            btn.addEventListener(eventName, clearLongPressTimer, true);
+        ["pointerup", "pointercancel", "pointerleave", "lostpointercapture"].forEach((eventName) => {
+            btn.addEventListener(eventName, (event) => {
+                if (activePointerId === null || event.pointerId === activePointerId) clearLongPressTimer();
+            }, true);
+        });
+        btn.addEventListener("contextmenu", (event) => {
+            if (!btn.__x2md_long_press_fired) return;
+            event.preventDefault();
         });
         btn.addEventListener("click", async (event) => {
             event.preventDefault();

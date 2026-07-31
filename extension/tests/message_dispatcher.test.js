@@ -27,6 +27,7 @@ function fixture(overrides = {}) {
         setAutostart: async (enabled) => ({ success: true, enabled }),
         ping: async () => ({ status: "ok", version: "4.0.0" }),
         openOptions: async () => {},
+        downloadVideo: async (data) => ({ success: true, filename: `${data.text || "x2md-video"}.mp4`, downloadId: 7 }),
         extensionVersion: () => "4.0.0",
         ...overrides,
     };
@@ -64,6 +65,15 @@ test("translation and copy messages are dispatched", async () => {
     });
     assert.deepEqual(await dispatch({ action: "copy_content_text", data: { text: "hello" } }), {
         success: true, text: "hello", enrichedAs: "copy",
+    });
+});
+
+test("video download messages stay in the background download route", async () => {
+    const { dispatch } = fixture();
+    assert.deepEqual(await dispatch({ action: "download_video", data: { text: "clip" } }, { tab: { url: "https://x.com/alice/status/123" } }), {
+        success: true,
+        filename: "clip.mp4",
+        downloadId: 7,
     });
 });
 

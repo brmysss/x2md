@@ -178,8 +178,8 @@ function appendLinkCardBlock(lines: string[], cardValue: unknown): void {
   lines.push("> [!info] 链接卡片");
   if (title) lines.push(`> **${title}**`);
   if (description) lines.push(`> ${description}`);
-  if (domain) lines.push(`> ${domain}`);
-  if (url) lines.push(`> ${url}`);
+  if (url) lines.push(domain ? `> [${domain}](${url})` : `> ${url}`);
+  else if (domain) lines.push(`> ${domain}`);
 }
 
 function normalizeTags(value: unknown): string[] {

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+const expectedExtensionVersion = String(pkg.version).split("-", 1)[0];
 const args = process.argv.slice(2);
 if (args.includes("--help")) {
   console.log("Usage: node scripts/check-release-artifacts.mjs [--dir <directory> | --mac-zip <file>]\n\nValidates a final Mac zip or the complete release artifact set.");
@@ -46,6 +47,9 @@ try {
   for (const file of ["manifest.json", "background.js", "job_client.js"]) {
     if (!existsSync(join(dir, "X2MD.app", "Contents", "Resources", "extension", file))) throw new Error(`X2MD_Mac.zip missing extension ${file}`);
   }
+  const embeddedManifest = JSON.parse(readFileSync(join(dir, "X2MD.app", "Contents", "Resources", "extension", "manifest.json"), "utf8"));
+  if (embeddedManifest.manifest_version !== 3 || !String(embeddedManifest.name || "").includes("X2MD")) throw new Error("X2MD_Mac.zip embedded extension manifest invalid");
+  if (embeddedManifest.version !== expectedExtensionVersion) throw new Error(`X2MD_Mac.zip embedded extension version mismatch: ${embeddedManifest.version} != ${expectedExtensionVersion}`);
   if (process.env.X2MD_REQUIRE_SIGNED === "1") {
     const extractedApp = join(dir, "X2MD.app");
     execFileSync("codesign", ["--verify", "--deep", "--strict", "--verbose=2", extractedApp], { stdio: "inherit" });
@@ -70,8 +74,10 @@ try {
   }
   const manifest = JSON.parse(readFileSync(join(extDir, "manifest.json"), "utf8"));
   if (manifest.manifest_version !== 3 || !String(manifest.name || "").includes("X2MD")) throw new Error("X2MD_Extension.zip manifest invalid");
+  if (manifest.version !== expectedExtensionVersion) throw new Error(`X2MD_Extension.zip version mismatch: ${manifest.version} != ${expectedExtensionVersion}`);
   const update = JSON.parse(readFileSync(updateJson, "utf8"));
   if (!update.version && !update.updateInfo && !update.artifacts) throw new Error("update.json missing update metadata");
+  if (update.version && update.version !== pkg.version) throw new Error(`update.json version mismatch: ${update.version} != ${pkg.version}`);
 
   const winDir = join(dir, "windows");
   execFileSync("unzip", ["-q", winZip, "-d", winDir]);
