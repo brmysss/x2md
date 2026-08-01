@@ -2,6 +2,8 @@
 
 X2MD 4.1 聚焦 X 长文章的翻译体验、文章工具栏稳定性和桌面设置界面的可用性。
 
+> 本次 macOS 资产因 GitHub 环境缺少 Developer ID 与公证凭据，采用已通过本地发行烟测的 Electrobun ad-hoc 签名备用构建；该资产未使用 Developer ID 签名，也未经过 Apple 公证。
+
 ## 新增
 
 - X 文章支持按段渐进式翻译，完成一个段落后立即替换显示，无需等待全文完成。
@@ -28,10 +30,8 @@ X2MD 4.1 聚焦 X 长文章的翻译体验、文章工具栏稳定性和桌面�
 
 ## 发行产物
 
-- `X2MD_Mac.zip`
+- `X2MD_Mac.zip`（arm64，ad-hoc 签名，未公证）
 - `X2MD_Extension.zip`
 - `X2MD_Windows_Beta.zip`
 - `update.json`
-- `SBOM.cdx.json`
-- `PROVENANCE.sigstore.json`
 - `SHA256SUMS.txt`
