@@ -5,8 +5,81 @@
     const TRANSLATION_MAX_ATTEMPTS = 3;
     const TRANSLATION_RETRY_BASE_MS = 1200;
     const TRANSLATION_MIN_INTERVAL_MS = 800;
+    const TRANSLATION_CACHE_TTL_MS = 60 * 60 * 1000;
+    const TRANSLATION_CACHE_MAX_ENTRIES = 500;
+    const TRANSLATION_CACHE_STORAGE_KEY = "x2md_translation_cache_v1";
     let translationRequestNextAt = 0;
     let translationRequestChain = Promise.resolve();
+
+    function createTranslationCache({ storage, now = Date.now, ttlMs = TRANSLATION_CACHE_TTL_MS, maxEntries = TRANSLATION_CACHE_MAX_ENTRIES } = {}) {
+        const entries = new Map();
+        const pending = new Map();
+        let loaded = false;
+        let loadPromise = null;
+        let writeChain = Promise.resolve();
+
+        async function load() {
+            if (loaded) return;
+            if (!loadPromise) {
+                loadPromise = Promise.resolve(storage?.get?.(TRANSLATION_CACHE_STORAGE_KEY)).then((result) => {
+                    const stored = Array.isArray(result?.[TRANSLATION_CACHE_STORAGE_KEY]) ? result[TRANSLATION_CACHE_STORAGE_KEY] : [];
+                    for (const item of stored) {
+                        const text = String(item?.text || "").trim();
+                        const translatedText = String(item?.translatedText || "").trim();
+                        const expiresAt = Number(item?.expiresAt) || 0;
+                        if (text && translatedText && expiresAt > now()) entries.set(text, { translatedText, expiresAt });
+                    }
+                    loaded = true;
+                });
+            }
+            await loadPromise;
+        }
+
+        function prune() {
+            const currentTime = now();
+            for (const [text, item] of entries) {
+                if (item.expiresAt <= currentTime) entries.delete(text);
+            }
+            if (entries.size <= maxEntries) return;
+            const oldest = Array.from(entries.entries()).sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+            for (let index = 0; index < oldest.length - maxEntries; index++) entries.delete(oldest[index][0]);
+        }
+
+        function persist() {
+            if (!storage?.set) return Promise.resolve();
+            writeChain = writeChain.then(() => storage.set({
+                [TRANSLATION_CACHE_STORAGE_KEY]: Array.from(entries, ([text, item]) => ({ text, ...item })),
+            }));
+            return writeChain;
+        }
+
+        async function getOrTranslate(sourceText, translate) {
+            const text = String(sourceText || "").trim();
+            if (!text) throw new Error("empty translation source");
+            await load();
+            prune();
+            const cached = entries.get(text);
+            if (cached) return cached.translatedText;
+            if (pending.has(text)) return pending.get(text);
+
+            const request = (async () => {
+                const translatedText = String(await translate(text) || "").trim();
+                if (!translatedText) throw new Error("empty translation");
+                entries.set(text, { translatedText, expiresAt: now() + ttlMs });
+                prune();
+                await persist();
+                return translatedText;
+            })();
+            pending.set(text, request);
+            try {
+                return await request;
+            } finally {
+                pending.delete(text);
+            }
+        }
+
+        return { getOrTranslate };
+    }
 
     function getTranslationRetryDelay(response, attempt) {
         const retryAfterHeader = response?.headers?.get?.("retry-after");
@@ -57,6 +130,7 @@
     function start() {
         const localClient = X2MDLocalClient.createLocalClient();
         const xEnrichment = X2MDXEnrichment;
+        const translationCache = createTranslationCache({ storage: chrome.storage.local });
         const TWITTER_BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
         const PLAIN_TEXT_TRANSLATE_CHUNK_SIZE = 2600;
         const USER_BY_SCREEN_NAME_OPERATION_IDS = ["2qvSHpkWTMS9i0zJAwDNiA"];
@@ -626,7 +700,7 @@
             applyCustomSavePath: applyCustomSavePathSelection,
             applyTranslationOverride: applyTranslationOverrideToData,
             translateTweet: fetchGrokTranslation,
-            translateText: translatePlainTextToChinese,
+            translateText: (text) => translationCache.getOrTranslate(text, translatePlainTextToChinese),
             fetchProfileItems: fetchProfileItemsViaGraphQL,
             postProfileCapture: postProfileCapturePayload,
             pair: (code) => localClient.pair(code),
@@ -674,6 +748,6 @@
 
     root.X2MDBackgroundRuntime = { start };
     if (typeof module !== "undefined" && module.exports) {
-        module.exports = { getTranslationRetryDelay, parseGrokTranslationResponseText };
+        module.exports = { createTranslationCache, getTranslationRetryDelay, parseGrokTranslationResponseText };
     }
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -1,7 +1,33 @@
 const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const test = require("node:test");
-const { getTranslationRetryDelay, parseGrokTranslationResponseText } = require("../background_runtime.js");
+const { createTranslationCache, getTranslationRetryDelay, parseGrokTranslationResponseText } = require("../background_runtime.js");
+
+test("translation cache persists results for one hour and expires them afterwards", async () => {
+    let currentTime = 1_000;
+    let stored = {};
+    let translateCalls = 0;
+    const storage = {
+        async get() { return stored; },
+        async set(value) { stored = structuredClone(value); },
+    };
+    const translate = async (text) => {
+        translateCalls++;
+        return `中:${text}:${translateCalls}`;
+    };
+
+    const firstCache = createTranslationCache({ storage, now: () => currentTime });
+    assert.equal(await firstCache.getOrTranslate("hello", translate), "中:hello:1");
+    assert.equal(await firstCache.getOrTranslate("hello", translate), "中:hello:1");
+
+    const restoredCache = createTranslationCache({ storage, now: () => currentTime });
+    assert.equal(await restoredCache.getOrTranslate("hello", translate), "中:hello:1");
+    assert.equal(translateCalls, 1);
+
+    currentTime += 60 * 60 * 1000;
+    assert.equal(await restoredCache.getOrTranslate("hello", translate), "中:hello:2");
+    assert.equal(translateCalls, 2);
+});
 
 test("background pairs once and authenticates every local request from stored token", () => {
     const source = readFileSync("extension/background.js", "utf8");

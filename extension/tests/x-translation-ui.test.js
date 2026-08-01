@@ -78,6 +78,8 @@ test("article translation scopes its title, uses Draft blocks, and bypasses nati
     assert.match(source, /const isArticleScope = isTwitterArticleTranslationScope\(article\)/);
     assert.match(source, /if \(!isArticleScope\) \{\s*const nativeState = await toggleNativeTwitterTranslation\(article\)/);
     assert.match(source, /translateArticleTextSegments[\s\S]+bodyBlocks\.forEach/);
+    assert.match(source, /requestBackgroundTextTranslation[\s\S]{0,1800}replaceElementTextWithTranslation\(bodyBlocks\[paragraphIndex\], translatedText/);
+    assert.doesNotMatch(source, /replaceElementTextWithTranslation\(block, translated\.translatedParagraphs\[index\]/);
     assert.match(source, /querySelectorAll\('article\[data-testid=\"tweet\"\]'\)/);
     assert.doesNotMatch(source, /isTwitterArticleTranslationScope\(document\)[\s\S]{0,250}document\.querySelector\(X_GROK_BUTTON_SELECTORS\)/);
     assert.match(source, /excludedAncestor && bodyEl\.contains\(excludedAncestor\)/);

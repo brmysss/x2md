@@ -1097,6 +1097,8 @@
         const titleText = String(target.articleTitle || "").trim();
         const bodyBlocks = getArticleTranslatableTextBlocks(target.bodyEl);
         const originals = bodyBlocks.map((block) => articleBlockText(block));
+        let progressiveTitle = "";
+        const progressiveParagraphs = [];
         const translated = await translateArticleTextSegments({ title: titleText, paragraphs: originals }, async (text, segment) => {
             setInlineTranslationStatus(document, `正在翻译 ${Math.min(segment.completed + 1, segment.total)}/${segment.total}…`);
             const result = await requestBackgroundTextTranslation({
@@ -1104,7 +1106,27 @@
                 url: location.href.split("?")[0],
                 type: segment.kind === "title" ? "x_article_title" : "x_article_block",
             });
-            return result.translatedText || "";
+            const translatedText = result.translatedText || "";
+            if (segment.kind === "title") {
+                progressiveTitle = translatedText;
+            } else {
+                const paragraphIndex = segment.completed - (titleText ? 1 : 0);
+                progressiveParagraphs[paragraphIndex] = translatedText;
+            }
+            const progressiveBody = progressiveParagraphs.filter(Boolean).join("\n\n");
+            const progressiveOverride = {
+                type: "article",
+                article_title: progressiveTitle,
+                article_content: progressiveBody || progressiveTitle,
+                text: [progressiveTitle, progressiveBody].filter(Boolean).join("\n\n"),
+            };
+            if (segment.kind === "title" && target.titleEl) {
+                replaceElementTextWithTranslation(target.titleEl, translatedText, progressiveOverride);
+            } else if (segment.kind === "paragraph") {
+                const paragraphIndex = segment.completed - (titleText ? 1 : 0);
+                replaceElementTextWithTranslation(bodyBlocks[paragraphIndex], translatedText, progressiveOverride);
+            }
+            return translatedText;
         });
         const translatedTitle = translated.translatedTitle;
         const translatedBody = translated.translatedBody;
@@ -1116,12 +1138,7 @@
             text: translatedText,
         };
 
-        if (translatedTitle && target.titleEl) {
-            replaceElementTextWithTranslation(target.titleEl, translatedTitle, articleOverride);
-        }
-        bodyBlocks.forEach((block, index) => {
-            replaceElementTextWithTranslation(block, translated.translatedParagraphs[index], articleOverride);
-        });
+        bodyBlocks.forEach((block) => markElementTranslated(block, articleOverride));
         if (target.titleEl) markElementTranslated(target.titleEl, articleOverride);
         if (target.bodyEl) markElementTranslated(target.bodyEl, articleOverride);
         clearInlineTranslationStatus(document);
