@@ -494,6 +494,7 @@ async function loadConfig(): Promise<void> {
   $("profileSavePath").value = cfg.profile_capture_save_path || "";
   $("showSiteSaveIcon").checked = Boolean(cfg.show_site_save_icon);
   $("showProfileCapture").checked = Boolean(cfg.show_x_profile_capture_button);
+  $("autoTranslateXArticleTitle").checked = cfg.auto_translate_x_article_title !== false;
   $("autoTagsEnabled").checked = cfg.auto_tags_enabled !== false;
   (field("defaultTags") as HTMLTextAreaElement).value = Array.isArray(cfg.default_tags) ? cfg.default_tags.join(", ") : "";
   (field("tagRules") as HTMLTextAreaElement).value = JSON.stringify(cfg.tag_rules || {}, null, 2);
@@ -604,6 +605,7 @@ async function saveConfig(): Promise<void> {
     profile_capture_save_path: $("profileSavePath").value.trim(),
     show_site_save_icon: $("showSiteSaveIcon").checked,
     show_x_profile_capture_button: $("showProfileCapture").checked,
+    auto_translate_x_article_title: $("autoTranslateXArticleTitle").checked,
     auto_tags_enabled: $("autoTagsEnabled").checked,
     default_tags: parseDefaultTags((field("defaultTags") as HTMLTextAreaElement).value),
     tag_rules: tagRules,

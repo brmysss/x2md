@@ -11,6 +11,7 @@
         markdownToClipboardPlainText,
         plainTextToClipboardHtml,
         translateArticleTextSegments,
+        isProbablySimplifiedChinese,
     } = translationHelpers;
     // ─────────────────────────────────────────────
     // X/Twitter 页面内复制正文按钮
@@ -53,6 +54,8 @@
     let xAutoTranslateActiveCount = 0;
     let xAutoTranslateLastStartedAt = 0;
     let xAutoTranslateDrainTimer = null;
+    let xArticleTitleAutoTranslateScheduled = false;
+    const xArticleTitleAutoTranslateKeys = new Set();
 
     function findFirstStatusUrl(container) {
         const links = container?.querySelectorAll?.('a[href*="/status/"]') || [];
@@ -130,6 +133,7 @@
 
     function getDisplayedTranslationContentForCopy(scope = document) {
         const override = getElementTranslationOverride(scope) || findDescendantTranslationOverride(scope);
+        if (override?.source === "article_title_auto") return null;
         const overrideText = String(override?.text || override?.article_content || "").trim();
         if (overrideText) return { text: overrideText, html: plainTextToClipboardHtml(overrideText), source: "visible_translation" };
 
@@ -631,7 +635,7 @@
                     originalEls: [titleEl, bodyEl].filter(Boolean),
                     titleEl,
                     bodyEl,
-                    articleTitle: source.title,
+                    articleTitle: titleEl?.__x2md_original_text || source.title,
                     articleBody: source.body,
                     text: source.text,
                 };
@@ -680,6 +684,7 @@
         if (!el || el.__x2md_original_html === undefined) return false;
         el.innerHTML = el.__x2md_original_html;
         delete el.__x2md_original_html;
+        delete el.__x2md_original_text;
         delete el.__x2md_translation_override;
         el.removeAttribute?.("data-x2md-translated");
         return true;
@@ -689,6 +694,7 @@
         if (!el || !translatedText) return false;
         if (el.__x2md_original_html === undefined) {
             el.__x2md_original_html = el.innerHTML;
+            el.__x2md_original_text = String(el.innerText || el.textContent || "").trim();
         }
         el.innerHTML = escapeHtml(translatedText).replace(/\n/g, "<br>");
         markElementTranslated(el, override || { type: "tweet", text: translatedText });
@@ -936,8 +942,10 @@
     function targetHasVisibleTranslation(target) {
         if (!target) return false;
         if (target.kind === "article") {
-            if (target.titleEl?.__x2md_translation_override) return true;
-            return getArticleTranslatableTextBlocks(target.bodyEl).some((block) => !!block.__x2md_translation_override);
+            const bodyTranslated = getArticleTranslatableTextBlocks(target.bodyEl).some((block) => !!block.__x2md_translation_override);
+            if (bodyTranslated) return true;
+            const titleOverride = target.titleEl?.__x2md_translation_override;
+            return !!titleOverride && titleOverride.source !== "article_title_auto";
         }
         if (target.kind === "article_card") {
             return !!target.titleEl?.__x2md_translation_override || !!target.bodyEl?.__x2md_translation_override;
@@ -1143,6 +1151,43 @@
         if (target.bodyEl) markElementTranslated(target.bodyEl, articleOverride);
         clearInlineTranslationStatus(document);
         return !!translatedText;
+    }
+
+    function scheduleArticleTitleAutoTranslation() {
+        if (xArticleTitleAutoTranslateScheduled) return;
+        xArticleTitleAutoTranslateScheduled = true;
+        setTimeout(async () => {
+            xArticleTitleAutoTranslateScheduled = false;
+            if (globalScope.runtimeConfig == null || globalScope.runtimeConfig.auto_translate_x_article_title === false) return;
+            if (!isTwitterArticleTranslationScope(document)) return;
+
+            const target = getTranslationTarget(document);
+            if (target?.kind !== "article" || !target.titleEl || target.titleEl.__x2md_translation_override) return;
+            const titleText = String(target.articleTitle || "").trim();
+            if (!titleText || isProbablySimplifiedChinese(titleText)) return;
+
+            const key = `${location.href.split("?")[0]}\n${titleText}`;
+            if (xArticleTitleAutoTranslateKeys.has(key)) return;
+            xArticleTitleAutoTranslateKeys.add(key);
+            try {
+                const result = await requestBackgroundTextTranslation({
+                    text: titleText,
+                    url: location.href.split("?")[0],
+                    type: "x_article_title",
+                });
+                const translatedTitle = String(result.translatedText || "").trim();
+                if (!translatedTitle) return;
+                replaceElementTextWithTranslation(target.titleEl, translatedTitle, {
+                    type: "article",
+                    article_title: translatedTitle,
+                    article_content: "",
+                    text: translatedTitle,
+                    source: "article_title_auto",
+                });
+            } catch (error) {
+                console.warn("[x2md] X 文章标题自动翻译失败：", error);
+            }
+        }, 250);
     }
 
     function splitNativeArticleCardTranslation(translatedText) {
@@ -1777,7 +1822,10 @@
 
     const api = {
         mount: ensureTwitterInlineCopyButtons,
-        schedule: scheduleAutoTranslateLoadedContent,
+        schedule() {
+            scheduleAutoTranslateLoadedContent();
+            scheduleArticleTitleAutoTranslation();
+        },
         applyVisibleTranslationOverride: withVisibleTranslationOverride,
         normalizeRemoteCopyContent,
     };

@@ -98,6 +98,16 @@ test("article toolbar buttons mount beside native controls without a floating fa
     assert.doesNotMatch(source, /position:\s*"fixed"[\s\S]{0,500}X_INLINE_ACTIONS_CONTAINER_CLASS/);
 });
 
+test("non-simplified X article titles auto translate through the shared config", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "x-translation-ui.js"), "utf8");
+    const runtime = fs.readFileSync(path.join(__dirname, "..", "content_runtime.js"), "utf8");
+    assert.match(source, /auto_translate_x_article_title === false/);
+    assert.match(source, /isProbablySimplifiedChinese\(titleText\)/);
+    assert.match(source, /source:\s*"article_title_auto"/);
+    assert.match(source, /scheduleArticleTitleAutoTranslation\(\)/);
+    assert.match(runtime, /X2MDXTranslationUI\?\.schedule\?\.\(\)/);
+});
+
 test("long-press auto translation owns its detail-page guard and pointer lifecycle", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "x-translation-ui.js"), "utf8");
     assert.match(source, /function isTwitterDetailOrArticlePage\s*\(/);

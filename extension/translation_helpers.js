@@ -19,6 +19,15 @@
         return value === "show more" || value === "显示更多";
     }
 
+    function isProbablySimplifiedChinese(text) {
+        const value = normalizeSpaces(text);
+        if (!value || /[\u3040-\u30ff\uac00-\ud7af]/.test(value)) return false;
+        if (/[這個們來時為與發會後裡說對國學實現開關標題翻譯網頁顯預設點擊進內容簡體還從將過無讓應該種麼於較並業專車門間長處問題]/.test(value)) return false;
+        const hanCount = (value.match(/\p{Script=Han}/gu) || []).length;
+        const latinCount = (value.match(/[A-Za-z]/g) || []).length;
+        return hanCount >= 2 && hanCount >= latinCount;
+    }
+
     function buildArticleTranslationSource(parts = {}) {
         const title = normalizeSpaces(parts.title || "");
         const body = normalizeSpaces(parts.body || "");
@@ -271,6 +280,7 @@
         translateArticleTextSegments,
         cleanupTwitterDisplayUrlLineBreaks,
         isExpandableTweetTextControl,
+        isProbablySimplifiedChinese,
         normalizeSpaces,
         stripXArticleLinksFromText,
     };

@@ -1,7 +1,7 @@
 export const CONFIG_KEYS = [
   "config_version", "save_paths", "custom_save_paths", "filename_format", "max_filename_length",
   "video_save_path", "enable_video_download", "video_duration_threshold", "show_site_save_icon",
-  "show_x_profile_capture_button", "enable_save_notification", "auto_tags_enabled", "default_tags",
+  "show_x_profile_capture_button", "auto_translate_x_article_title", "enable_save_notification", "auto_tags_enabled", "default_tags",
   "tag_rules", "front_matter_template", "custom_front_matter_template", "local_api_token",
   "install_secret", "require_local_api_token", "download_images", "image_attachment_path",
   "image_embed_style", "profile_capture_range", "profile_capture_custom_days",

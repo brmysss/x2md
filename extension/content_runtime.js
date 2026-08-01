@@ -29,6 +29,7 @@
                 root.runtimeConfig = runtimeConfig;
                 ensureFloatingSaveButton();
                 ensureXProfileCaptureButton();
+                root.X2MDXTranslationUI?.schedule?.();
             });
         }
 

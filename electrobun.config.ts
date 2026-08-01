@@ -22,7 +22,7 @@ export default {
     copy: {
       "app/ui/settings/index.html": "views/settings/index.html",
       "app/ui/settings/styles.css": "views/settings/styles.css",
-      "assets/icon.png": "views/assets/icon.png",
+      "assets/AppIcon.iconset/icon_128x128.png": "views/assets/icon.png",
       "assets/tray-icon.png": "views/assets/tray-icon.png",
     },
     mac: {

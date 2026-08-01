@@ -21,6 +21,7 @@ export type X2MDConfig = Record<string, unknown> & {
   video_duration_threshold: number;
   show_site_save_icon: boolean;
   show_x_profile_capture_button: boolean;
+  auto_translate_x_article_title: boolean;
   enable_save_notification: boolean;
   auto_tags_enabled: boolean;
   default_tags: string[];
@@ -65,6 +66,7 @@ export const DEFAULT_CONFIG: X2MDConfig = {
   video_duration_threshold: 5,
   show_site_save_icon: true,
   show_x_profile_capture_button: true,
+  auto_translate_x_article_title: true,
   enable_save_notification: false,
   auto_tags_enabled: true,
   default_tags: [],
@@ -154,6 +156,7 @@ export function normalizeConfigWithWarnings(raw: Record<string, unknown> = {}, i
   cfg.image_embed_style = String(cfg.image_embed_style) === "obsidian" ? "obsidian" : "markdown";
   cfg.show_site_save_icon = boolValue(cfg.show_site_save_icon, DEFAULT_CONFIG.show_site_save_icon);
   cfg.show_x_profile_capture_button = boolValue(cfg.show_x_profile_capture_button, DEFAULT_CONFIG.show_x_profile_capture_button);
+  cfg.auto_translate_x_article_title = boolValue(cfg.auto_translate_x_article_title, DEFAULT_CONFIG.auto_translate_x_article_title);
   cfg.duplicate_policy = ["skip", "update", "always_new"].includes(String(cfg.duplicate_policy)) ? cfg.duplicate_policy : "skip";
   cfg.setup_steps = cfg.setup_steps && typeof cfg.setup_steps === "object" && !Array.isArray(cfg.setup_steps)
     ? Object.fromEntries(Object.entries(cfg.setup_steps).filter(([, value]) => value === true))

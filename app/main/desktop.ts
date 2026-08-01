@@ -23,8 +23,11 @@ function escapeInlineStyle(style: string): string {
   return style.replace(/<\/style/gi, "<\\/style");
 }
 
-export function inlineSettingsHtml(html: string, css: string, script: string, port: number | string, session = "", pairingCode = ""): string {
-  const withCss = html.replace(
+export function inlineSettingsHtml(html: string, css: string, script: string, port: number | string, session = "", pairingCode = "", iconDataUrl = ""): string {
+  const withIcon = iconDataUrl
+    ? html.replace(/src="\.\.\/assets\/icon\.png"/, `src="${iconDataUrl}"`)
+    : html;
+  const withCss = withIcon.replace(
     /<link\s+rel="stylesheet"\s+href="styles\.css"\s*\/?>/,
     `<style>${escapeInlineStyle(css)}</style>`,
   );
@@ -49,12 +52,19 @@ function readFirst(paths: string[]): string | null {
 }
 
 export function settingsHtml(port: number | string, executable = process.execPath, session = "", pairingCode = ""): string {
-  const settingsRoot = join(settingsViewsRootForExecutable(executable), "settings");
+  const viewsRoot = settingsViewsRootForExecutable(executable);
+  const settingsRoot = join(viewsRoot, "settings");
   const html = readFirst([join(settingsRoot, "index.html"), resolve("app/ui/settings/index.html")]);
   const css = readFirst([join(settingsRoot, "styles.css"), resolve("app/ui/settings/styles.css")]) || "";
   const script = readFirst([join(settingsRoot, "settings.js")]);
+  const iconPath = [
+    join(viewsRoot, "assets", "icon.png"),
+    resolve("assets/AppIcon.iconset/icon_128x128.png"),
+    resolve("assets/icon.png"),
+  ].find(existsSync);
+  const iconDataUrl = iconPath ? `data:image/png;base64,${readFileSync(iconPath).toString("base64")}` : "";
 
-  if (html && script) return inlineSettingsHtml(html, css, script, port, session, pairingCode);
+  if (html && script) return inlineSettingsHtml(html, css, script, port, session, pairingCode, iconDataUrl);
 
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>X2MD 设置</title><style>body{font:16px -apple-system,BlinkMacSystemFont,sans-serif;padding:32px;color:#111}code{background:#eee;padding:2px 4px;border-radius:4px}</style></head><body><h1>X2MD 设置</h1><p>设置页资源未找到，请重新安装 X2MD。</p><p><code>${settingsRoot}</code></p></body></html>`;
 }

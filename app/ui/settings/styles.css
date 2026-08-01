@@ -390,6 +390,7 @@ h4 {
 .media-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, 0.7fr);
+  align-items: start;
   gap: 12px;
 }
 

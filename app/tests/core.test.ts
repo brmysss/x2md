@@ -410,11 +410,13 @@ test("旧配置布尔字符串按布尔值迁移", () => {
     enable_save_notification: "false",
     show_site_save_icon: "0",
     show_x_profile_capture_button: "off",
+    auto_translate_x_article_title: "false",
   });
   assert.equal(cfg.enable_video_download, false);
   assert.equal(cfg.enable_save_notification, false);
   assert.equal(cfg.show_site_save_icon, false);
   assert.equal(cfg.show_x_profile_capture_button, false);
+  assert.equal(cfg.auto_translate_x_article_title, false);
 });
 
 test("保存通知正文不泄露完整路径", () => {
@@ -456,16 +458,20 @@ test("设置页 URL 固定使用 9527", () => {
 
 test("设置页 HTML 内联样式和脚本，避免 views scheme 空白", () => {
   const html = inlineSettingsHtml(
-    '<html><head><link rel="stylesheet" href="styles.css" /></head><body><h1>X2MD 设置</h1><script type="module" src="settings.js"></script></body></html>',
+    '<html><head><link rel="stylesheet" href="styles.css" /></head><body><img src="../assets/icon.png" alt="X2MD" /><h1>X2MD 设置</h1><script type="module" src="settings.js"></script></body></html>',
     "body { color: #111; }",
     "document.body.dataset.ready = '1';",
     19001,
+    "",
+    "",
+    "data:image/png;base64,TEST",
   );
   assert.match(html, /globalThis\.X2MD_PORT = "19001"/);
   assert.match(html, /<style>body \{ color: #111; \}<\/style>/);
   assert.match(html, /document\.body\.dataset\.ready/);
   assert.doesNotMatch(html, /href="styles\.css"/);
   assert.doesNotMatch(html, /src="settings\.js"/);
+  assert.match(html, /src="data:image\/png;base64,TEST"/);
 });
 
 test("设置窗口使用内联 HTML，不直接加载 views:// 页面", () => {
@@ -515,10 +521,11 @@ test("托盘 action 分发到桌面能力", async () => {
 test("设置页字段和脚本选择器保持一致", () => {
   const html = readFileSync("app/ui/settings/index.html", "utf8");
   const script = readFileSync("app/ui/settings/settings.ts", "utf8");
+  const css = readFileSync("app/ui/settings/styles.css", "utf8");
   for (const id of [
     "savePath", "customSavePaths", "videoPath", "enableVideoDownload", "enableSaveNotification",
     "videoThreshold", "filenameFormat", "maxFilenameLength", "profileRange",
-    "profileCustomDays", "profileSavePath", "showSiteSaveIcon", "showProfileCapture",
+    "profileCustomDays", "profileSavePath", "showSiteSaveIcon", "showProfileCapture", "autoTranslateXArticleTitle",
     "autoTagsEnabled", "defaultTags", "tagRules", "frontMatterTemplate",
     "customFrontMatterTemplate", "customFrontMatterVariables", "customFrontMatterPreview",
     "autostart", "save", "test", "openSave", "openVideo", "openLog", "showLog", "openExtension",
@@ -537,6 +544,8 @@ test("设置页字段和脚本选择器保持一致", () => {
   for (const key of ["auto_tags_enabled", "default_tags", "tag_rules", "front_matter_template", "custom_front_matter_template"]) {
     assert.match(script, new RegExp(key));
   }
+  assert.match(script, /auto_translate_x_article_title/);
+  assert.match(css, /\.media-fields\s*\{[^}]*align-items:\s*start;/s);
 });
 
 test("自启参数在 packaged app 内只指向 app 可执行文件", () => {

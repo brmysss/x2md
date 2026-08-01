@@ -1,6 +1,6 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import ts from "typescript";
 
 const roots = ["build", "dist"];
 
@@ -24,17 +24,16 @@ function copySettingsViews(appPath) {
   mkdirSync(settingsTarget, { recursive: true });
   cpSync("app/ui/settings/index.html", join(settingsTarget, "index.html"));
   cpSync("app/ui/settings/styles.css", join(settingsTarget, "styles.css"));
-  const js = ts.transpileModule(readFileSync("app/ui/settings/settings.ts", "utf8"), {
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.ES2022,
-    },
-  }).outputText;
-  writeFileSync(join(settingsTarget, "settings.js"), js, "utf8");
+  const result = spawnSync(process.env.BUN_BINARY || "bun", [
+    "build", "app/ui/settings/settings.ts", "--target=browser", "--format=esm",
+    `--outfile=${join(settingsTarget, "settings.js")}`,
+  ], { encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr || result.stdout || "settings bundle failed");
 
   const assetsTarget = join(viewsRoot, "assets");
   mkdirSync(assetsTarget, { recursive: true });
-  cpSync("assets/icon.png", join(assetsTarget, "icon.png"));
+  cpSync("assets/AppIcon.iconset/icon_128x128.png", join(assetsTarget, "icon.png"));
   cpSync("assets/tray-icon.png", join(assetsTarget, "tray-icon.png"));
 
   for (const file of ["index.html", "styles.css", "settings.js"]) {

@@ -6,9 +6,17 @@ const {
     buildArticleTranslationSource,
     cleanupTwitterDisplayUrlLineBreaks,
     isExpandableTweetTextControl,
+    isProbablySimplifiedChinese,
     stripXArticleLinksFromText,
     translateArticleTextSegments,
 } = require("../translation_helpers.js");
+
+test("isProbablySimplifiedChinese distinguishes simplified, traditional, and non-Chinese titles", () => {
+    assert.equal(isProbablySimplifiedChinese("教你搭建一个 AI 思考知识库"), true);
+    assert.equal(isProbablySimplifiedChinese("教你搭建一個 AI 思考知識庫"), false);
+    assert.equal(isProbablySimplifiedChinese("Getting the most out of GPT-5.6"), false);
+    assert.equal(isProbablySimplifiedChinese("AIモデルを選ぶ方法"), false);
+});
 
 test("isExpandableTweetTextControl matches tweet truncation controls only", () => {
     assert.equal(isExpandableTweetTextControl("显示更多"), true);
