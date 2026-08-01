@@ -1176,15 +1176,20 @@
                     type: "x_article_title",
                 });
                 const translatedTitle = String(result.translatedText || "").trim();
-                if (!translatedTitle) return;
-                replaceElementTextWithTranslation(target.titleEl, translatedTitle, {
+                if (!translatedTitle) {
+                    xArticleTitleAutoTranslateKeys.delete(key);
+                    return;
+                }
+                const rendered = replaceElementTextWithTranslation(target.titleEl, translatedTitle, {
                     type: "article",
                     article_title: translatedTitle,
                     article_content: "",
                     text: translatedTitle,
                     source: "article_title_auto",
                 });
+                if (!rendered) xArticleTitleAutoTranslateKeys.delete(key);
             } catch (error) {
+                xArticleTitleAutoTranslateKeys.delete(key);
                 console.warn("[x2md] X 文章标题自动翻译失败：", error);
             }
         }, 250);
@@ -1380,7 +1385,9 @@
     function getTranslationOverrideForSave(scope = globalScope.document) {
         const ctx = scope || globalScope.document;
         const elementOverride = getElementTranslationOverride(ctx) || findDescendantTranslationOverride(ctx);
-        if (elementOverride) return elementOverride;
+        if (elementOverride) {
+            return elementOverride.source === "article_title_auto" ? null : elementOverride;
+        }
 
         if (ctx === globalScope.document && isTwitterArticleTranslationScope(globalScope.document)) {
             const target = getTranslationTarget(document);

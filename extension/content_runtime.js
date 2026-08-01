@@ -25,7 +25,7 @@
             }
 
             chrome.runtime.sendMessage({ action: "get_config" }, (resp) => {
-                runtimeConfig = resp?.success ? (resp.config || {}) : {};
+                runtimeConfig = resp?.success ? (resp.config || {}) : null;
                 root.runtimeConfig = runtimeConfig;
                 ensureFloatingSaveButton();
                 ensureXProfileCaptureButton();

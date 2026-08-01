@@ -28,6 +28,27 @@ test("applies an in-memory translation override without persistence", () => {
     assert.equal(Object.prototype.hasOwnProperty.call(scope, "storage"), false);
 });
 
+test("automatic article title translation does not replace saved article content", () => {
+    const automaticTitle = {
+        type: "article",
+        article_title: "中文标题",
+        article_content: "",
+        text: "中文标题",
+        source: "article_title_auto",
+    };
+    const scope = {
+        __x2md_translation_override: automaticTitle,
+        querySelector() { return null; },
+    };
+    const original = {
+        type: "article",
+        article_title: "Original title",
+        article_content: "Original paragraph one.\n\nOriginal paragraph two.",
+    };
+
+    assert.deepEqual(translationUi.applyVisibleTranslationOverride(original, scope), original);
+});
+
 test("normalizes translated copy content as HTML and plain text", () => {
     assert.deepEqual(translationUi.normalizeRemoteCopyContent({
         markdown: "**Bold** [link](https://example.com)",
@@ -104,8 +125,11 @@ test("non-simplified X article titles auto translate through the shared config",
     assert.match(source, /auto_translate_x_article_title === false/);
     assert.match(source, /isProbablySimplifiedChinese\(titleText\)/);
     assert.match(source, /source:\s*"article_title_auto"/);
+    assert.match(source, /xArticleTitleAutoTranslateKeys\.delete\(key\)/);
+    assert.match(source, /elementOverride\.source === "article_title_auto" \? null : elementOverride/);
     assert.match(source, /scheduleArticleTitleAutoTranslation\(\)/);
     assert.match(runtime, /X2MDXTranslationUI\?\.schedule\?\.\(\)/);
+    assert.match(runtime, /runtimeConfig = resp\?\.success \? \(resp\.config \|\| \{\}\) : null/);
 });
 
 test("long-press auto translation owns its detail-page guard and pointer lifecycle", () => {
