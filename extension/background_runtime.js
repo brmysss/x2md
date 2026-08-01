@@ -17,6 +17,33 @@
         return Math.min(TRANSLATION_RETRY_BASE_MS * (2 ** attempt), 10000);
     }
 
+    function parseGrokTranslationResponseText(responseText) {
+        const source = String(responseText || "").trim();
+        const toTranslation = (json) => {
+            const translatedText = String(json?.result?.text || "").trim();
+            return translatedText ? {
+                translatedText,
+                contentType: json?.result?.content_type || "POST",
+            } : null;
+        };
+
+        let json;
+        try {
+            json = JSON.parse(source);
+        } catch (parseError) {
+            const lines = source.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+            if (lines.length <= 1) throw parseError;
+            const translations = lines.map((line) => toTranslation(JSON.parse(line))).filter(Boolean);
+            if (translations.length > 1) throw new Error("multiple translation results");
+            if (translations.length === 1) return translations[0];
+            throw new Error("empty translation");
+        }
+
+        const translation = toTranslation(json);
+        if (translation) return translation;
+        throw new Error("empty translation");
+    }
+
     function waitForTranslationRequestSlot() {
         const next = translationRequestChain.then(async () => {
             const waitMs = Math.max(0, translationRequestNextAt - Date.now());
@@ -92,16 +119,12 @@
                 throw new Error(`grok translation failed: ${resp.status}`);
             }
 
-            const json = await resp.json();
-            const translatedText = String(json?.result?.text || "").trim();
-            if (!translatedText) {
-                throw new Error("empty translation");
-            }
+            const parsed = parseGrokTranslationResponseText(await resp.text());
 
             return {
-                translatedText,
+                translatedText: parsed.translatedText,
                 tweetId: id,
-                contentType: json?.result?.content_type || "POST",
+                contentType: parsed.contentType,
             };
         }
 
@@ -650,5 +673,7 @@
     }
 
     root.X2MDBackgroundRuntime = { start };
-    if (typeof module !== "undefined" && module.exports) module.exports = { getTranslationRetryDelay };
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = { getTranslationRetryDelay, parseGrokTranslationResponseText };
+    }
 })(typeof globalThis !== "undefined" ? globalThis : this);
