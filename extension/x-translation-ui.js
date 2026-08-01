@@ -1701,53 +1701,61 @@
         return btn;
     }
 
+    function findTwitterArticleToolbarReference(article) {
+        const caretButton = article?.querySelector?.('[data-testid="caret"]');
+        if (!caretButton) return null;
+
+        let row = caretButton.parentElement;
+        for (let depth = 0; row && row !== article && depth < 6; depth++, row = row.parentElement) {
+            const buttons = Array.from(row.querySelectorAll?.('button, [role="button"]') || [])
+                .filter((button) => !button.classList?.contains(X_INLINE_COPY_BUTTON_CLASS) &&
+                    !button.classList?.contains(X_INLINE_TRANSLATE_BUTTON_CLASS));
+            const caretIndex = buttons.indexOf(caretButton);
+            if (caretIndex > 0) return buttons[caretIndex - 1];
+        }
+        return null;
+    }
+
+    function ensureTwitterInlineButtonPair(article, referenceButton) {
+        const parent = referenceButton?.parentElement;
+        if (!parent) return false;
+
+        let copyButton = article.querySelector(`.${X_INLINE_COPY_BUTTON_CLASS}`);
+        let translateButton = article.querySelector(`.${X_INLINE_TRANSLATE_BUTTON_CLASS}`);
+        if (copyButton?.parentElement !== parent || translateButton?.parentElement !== parent) {
+            copyButton?.remove();
+            translateButton?.remove();
+            copyButton = null;
+            translateButton = null;
+        }
+
+        if (!copyButton) copyButton = buildTwitterInlineCopyButton(referenceButton);
+        if (!translateButton) translateButton = buildTwitterInlineTranslateButton(referenceButton);
+        if (copyButton.nextElementSibling !== translateButton || translateButton.nextElementSibling !== referenceButton) {
+            parent.insertBefore(copyButton, referenceButton);
+            parent.insertBefore(translateButton, referenceButton);
+        }
+        return true;
+    }
+
     function ensureTwitterInlineCopyButtons() {
+        document.querySelectorAll(`.${X_INLINE_ACTIONS_CONTAINER_CLASS}`).forEach((el) => el.remove());
         if (!isTwitterLikePage()) {
             document.querySelectorAll(`.${X_INLINE_COPY_BUTTON_CLASS}`).forEach((btn) => btn.remove());
-            document.querySelectorAll(`.${X_INLINE_ACTIONS_CONTAINER_CLASS}`).forEach((el) => el.remove());
             return;
         }
 
         document.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
+            if (isTwitterArticleTranslationScope(article)) {
+                const referenceButton = findTwitterArticleToolbarReference(article);
+                if (referenceButton) ensureTwitterInlineButtonPair(article, referenceButton);
+                return;
+            }
+
             const grokButton = article.querySelector(X_GROK_BUTTON_SELECTORS);
             if (!grokButton || !grokButton.parentElement) return;
-
-            let copyButton = article.querySelector(`.${X_INLINE_COPY_BUTTON_CLASS}`);
-            if (!copyButton) {
-                copyButton = buildTwitterInlineCopyButton(grokButton);
-                grokButton.parentElement.insertBefore(copyButton, grokButton);
-            }
-
-            if (!article.querySelector(`.${X_INLINE_TRANSLATE_BUTTON_CLASS}`)) {
-                const translateButton = buildTwitterInlineTranslateButton(grokButton);
-                copyButton.insertAdjacentElement("afterend", translateButton);
-            }
+            ensureTwitterInlineButtonPair(article, grokButton);
         });
-
-        if (isTwitterArticleTranslationScope(document) && !document.querySelector(`.${X_INLINE_COPY_BUTTON_CLASS}`)) {
-            let container = document.querySelector(`.${X_INLINE_ACTIONS_CONTAINER_CLASS}`);
-            if (!container) {
-                container = document.createElement("div");
-                container.className = X_INLINE_ACTIONS_CONTAINER_CLASS;
-                Object.assign(container.style, {
-                    position: "fixed",
-                    top: "72px",
-                    right: "18px",
-                    zIndex: "2147483646",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    background: "rgba(255,255,255,.86)",
-                    borderRadius: "999px",
-                    boxShadow: "0 4px 16px rgba(0,0,0,.10)",
-                    backdropFilter: "blur(8px)",
-                });
-                const copyButton = buildTwitterInlineCopyButton(null);
-                const translateButton = buildTwitterInlineTranslateButton(null);
-                container.append(copyButton, translateButton);
-                document.body.appendChild(container);
-            }
-        }
     }
 
     const api = {

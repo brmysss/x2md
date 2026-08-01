@@ -78,11 +78,22 @@ test("article translation scopes its title, uses Draft blocks, and bypasses nati
     assert.match(source, /const isArticleScope = isTwitterArticleTranslationScope\(article\)/);
     assert.match(source, /if \(!isArticleScope\) \{\s*const nativeState = await toggleNativeTwitterTranslation\(article\)/);
     assert.match(source, /translateArticleTextSegments[\s\S]+bodyBlocks\.forEach/);
-    assert.match(source, /if \(isTwitterArticleTranslationScope\(document\) && !document\.querySelector/);
     assert.match(source, /querySelectorAll\('article\[data-testid=\"tweet\"\]'\)/);
     assert.doesNotMatch(source, /isTwitterArticleTranslationScope\(document\)[\s\S]{0,250}document\.querySelector\(X_GROK_BUTTON_SELECTORS\)/);
     assert.match(source, /excludedAncestor && bodyEl\.contains\(excludedAncestor\)/);
     assert.match(source, /if \(target\.kind === "article"\) \{\s*const mainRendered = await translateArticleInPlace\(target\);\s*return mainRendered \? "translated" : "missing";/);
+});
+
+test("article toolbar buttons mount beside native controls without a floating fallback", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "x-translation-ui.js"), "utf8");
+    assert.match(source, /function findTwitterArticleToolbarReference\s*\(/);
+    assert.match(source, /querySelector\?\.\('\[data-testid="caret"\]'\)/);
+    assert.match(source, /if \(caretIndex > 0\) return buttons\[caretIndex - 1\]/);
+    assert.match(source, /copyButton\.nextElementSibling !== translateButton \|\| translateButton\.nextElementSibling !== referenceButton/);
+    assert.match(source, /parent\.insertBefore\(copyButton, referenceButton\)/);
+    assert.match(source, /parent\.insertBefore\(translateButton, referenceButton\)/);
+    assert.match(source, /isTwitterArticleTranslationScope\(article\)[\s\S]{0,180}findTwitterArticleToolbarReference\(article\)/);
+    assert.doesNotMatch(source, /position:\s*"fixed"[\s\S]{0,500}X_INLINE_ACTIONS_CONTAINER_CLASS/);
 });
 
 test("long-press auto translation owns its detail-page guard and pointer lifecycle", () => {
