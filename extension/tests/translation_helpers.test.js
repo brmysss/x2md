@@ -7,6 +7,7 @@ const {
     cleanupTwitterDisplayUrlLineBreaks,
     isExpandableTweetTextControl,
     stripXArticleLinksFromText,
+    translateArticleTextSegments,
 } = require("../translation_helpers.js");
 
 test("isExpandableTweetTextControl matches tweet truncation controls only", () => {
@@ -31,6 +32,36 @@ test("buildArticleTranslationSource keeps article title and body explicit", () =
             body: "First paragraph.\n\nSecond paragraph.",
             text: "I'm Local AI Maxxing\n\nFirst paragraph.\n\nSecond paragraph.",
         },
+    );
+});
+
+test("translateArticleTextSegments translates an article one segment at a time", async () => {
+    const calls = [];
+    const result = await translateArticleTextSegments({
+        title: "Article title",
+        paragraphs: ["First paragraph.", "Second paragraph."],
+    }, async (text, segment) => {
+        calls.push({ text, ...segment });
+        return `中:${text}`;
+    });
+
+    assert.deepEqual(calls, [
+        { text: "Article title", kind: "title", completed: 0, total: 3 },
+        { text: "First paragraph.", kind: "paragraph", completed: 1, total: 3 },
+        { text: "Second paragraph.", kind: "paragraph", completed: 2, total: 3 },
+    ]);
+    assert.deepEqual(result, {
+        translatedTitle: "中:Article title",
+        translatedParagraphs: ["中:First paragraph.", "中:Second paragraph."],
+        translatedBody: "中:First paragraph.\n\n中:Second paragraph.",
+        translatedText: "中:Article title\n\n中:First paragraph.\n\n中:Second paragraph.",
+    });
+});
+
+test("translateArticleTextSegments rejects an empty segment instead of returning a partial article", async () => {
+    await assert.rejects(
+        translateArticleTextSegments({ paragraphs: ["First", "Second"] }, async (text) => text === "First" ? "第一" : ""),
+        /empty article paragraph translation/,
     );
 });
 

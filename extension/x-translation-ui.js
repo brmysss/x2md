@@ -10,6 +10,7 @@
         markdownToClipboardHtml,
         markdownToClipboardPlainText,
         plainTextToClipboardHtml,
+        translateArticleTextSegments,
     } = translationHelpers;
     // ─────────────────────────────────────────────
     // X/Twitter 页面内复制正文按钮
@@ -88,14 +89,18 @@
 
     function getTwitterArticleTitleElement(scope = document) {
         const ctx = scope || document;
-        return ctx.querySelector?.('[data-testid="twitter-article-title"], [data-testid="article-title"], h1') || null;
+        for (const selector of ['[data-testid="twitter-article-title"]', '[data-testid="article-title"]', 'h1']) {
+            const titleEl = ctx.querySelector?.(selector);
+            if (String(titleEl?.innerText || titleEl?.textContent || "").trim()) return titleEl;
+        }
+        return null;
     }
 
     function getTwitterArticleTranslationSource(scope = document) {
         const ctx = scope || document;
         const bodyEl = getTwitterArticleBodyContainer(ctx) || getTwitterArticleBodyContainer(document);
-        const mainScope = bodyEl?.closest?.('main, [role="main"]') || ctx;
-        const titleEl = getTwitterArticleTitleElement(mainScope) || getTwitterArticleTitleElement(ctx);
+        const articleScope = bodyEl?.closest?.('[data-testid="twitterArticleReadView"], article[data-testid="tweet"], article[role="article"]') || ctx;
+        const titleEl = getTwitterArticleTitleElement(articleScope) || getTwitterArticleTitleElement(ctx);
         return buildArticleTranslationSource({
             title: titleEl?.innerText || "",
             body: bodyEl?.innerText || "",
@@ -615,8 +620,8 @@
         const ctx = scope || document;
         if (isTwitterArticleTranslationScope(ctx)) {
             const bodyEl = getTwitterArticleBodyContainer(document);
-            const mainScope = bodyEl?.closest?.('main, [role="main"]') || document;
-            const titleEl = getTwitterArticleTitleElement(mainScope);
+            const articleScope = bodyEl?.closest?.('[data-testid="twitterArticleReadView"], article[data-testid="tweet"], article[role="article"]') || document;
+            const titleEl = getTwitterArticleTitleElement(articleScope);
             if (bodyEl) {
                 const source = getTwitterArticleTranslationSource(document);
                 return {
@@ -1027,7 +1032,8 @@
 
     function isArticleTextBlockCandidate(el, bodyEl) {
         if (!el || el.nodeType !== 1 || !bodyEl?.contains?.(el)) return false;
-        if (el.closest?.('[data-testid="simpleTweet"], article[data-testid="tweet"], [data-testid="tweetPhoto"], [data-testid="videoComponent"], [data-testid="videoPlayer"], [data-testid="User-Name"]')) return false;
+        const excludedAncestor = el.closest?.('[data-testid="simpleTweet"], article[data-testid="tweet"], [data-testid="tweetPhoto"], [data-testid="videoComponent"], [data-testid="videoPlayer"], [data-testid="User-Name"]');
+        if (excludedAncestor && bodyEl.contains(excludedAncestor)) return false;
         if (el.querySelector?.('img, video, [data-testid="simpleTweet"], article[data-testid="tweet"], [data-testid="tweetPhoto"], [data-testid="videoComponent"], [data-testid="videoPlayer"]')) return false;
         const text = articleBlockText(el);
         if (!text || text.length < 2) return false;
@@ -1062,9 +1068,12 @@
 
     function getArticleTranslatableTextBlocks(bodyEl) {
         if (!bodyEl) return [];
+        const draftBlocks = Array.from(bodyEl.querySelectorAll?.('[data-block="true"]') || [])
+            .filter((el) => isArticleTextBlockCandidate(el, bodyEl));
+        if (draftBlocks.length) return draftBlocks;
+
         const selectors = [
             '.public-DraftStyleDefault-block',
-            '[data-block="true"]',
             'div[dir="auto"]',
             'div[lang]',
             'p', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -1087,49 +1096,32 @@
     async function translateArticleInPlace(target) {
         const titleText = String(target.articleTitle || "").trim();
         const bodyBlocks = getArticleTranslatableTextBlocks(target.bodyEl);
-        const translatedParts = [];
-        let translatedTitle = "";
-
-        if (titleText && target.titleEl) {
-            const titleResult = await requestBackgroundTextTranslation({
-                text: titleText,
-                url: location.href.split("?")[0],
-                type: "x_article_title",
-            });
-            translatedTitle = titleResult.translatedText || "";
-            if (translatedTitle) {
-                replaceElementTextWithTranslation(target.titleEl, translatedTitle, {
-                    type: "article_title",
-                    article_title: translatedTitle,
-                });
-            }
-        }
-
-        for (const block of bodyBlocks) {
-            const original = articleBlockText(block);
-            if (!original) continue;
+        const originals = bodyBlocks.map((block) => articleBlockText(block));
+        const translated = await translateArticleTextSegments({ title: titleText, paragraphs: originals }, async (text, segment) => {
+            setInlineTranslationStatus(document, `正在翻译 ${Math.min(segment.completed + 1, segment.total)}/${segment.total}…`);
             const result = await requestBackgroundTextTranslation({
-                text: original,
+                text,
                 url: location.href.split("?")[0],
-                type: "x_article_block",
+                type: segment.kind === "title" ? "x_article_title" : "x_article_block",
             });
-            const translated = result.translatedText || "";
-            if (!translated) continue;
-            replaceElementTextWithTranslation(block, translated, {
-                type: "article_block",
-                text: translated,
-            });
-            translatedParts.push(translated);
-        }
-
-        const translatedBody = translatedParts.join("\n\n").trim();
-        const translatedText = [translatedTitle, translatedBody].filter(Boolean).join("\n\n");
+            return result.translatedText || "";
+        });
+        const translatedTitle = translated.translatedTitle;
+        const translatedBody = translated.translatedBody;
+        const translatedText = translated.translatedText;
         const articleOverride = {
             type: "article",
             article_title: translatedTitle,
             article_content: translatedBody || translatedTitle,
             text: translatedText,
         };
+
+        if (translatedTitle && target.titleEl) {
+            replaceElementTextWithTranslation(target.titleEl, translatedTitle, articleOverride);
+        }
+        bodyBlocks.forEach((block, index) => {
+            replaceElementTextWithTranslation(block, translated.translatedParagraphs[index], articleOverride);
+        });
         if (target.titleEl) markElementTranslated(target.titleEl, articleOverride);
         if (target.bodyEl) markElementTranslated(target.bodyEl, articleOverride);
         clearInlineTranslationStatus(document);
@@ -1411,8 +1403,7 @@
 
         if (target.kind === "article") {
             const mainRendered = await translateArticleInPlace(target);
-            const embeddedRendered = await translateEmbeddedTargetsInPlace(targetScope);
-            return (mainRendered || embeddedRendered) ? "translated" : "missing";
+            return mainRendered ? "translated" : "missing";
         }
 
         if (target.kind === "article_card") {
@@ -1634,10 +1625,13 @@
             }
             const fixedActions = btn.closest(`.${X_INLINE_ACTIONS_CONTAINER_CLASS}`);
             const article = fixedActions ? document : (btn.closest("article, [role='article']") || document);
-            const nativeState = await toggleNativeTwitterTranslation(article);
-            if (nativeState) {
-                showToast(nativeState === "original" ? "已显示原文" : "翻译已显示", "success", 1600);
-                return;
+            const isArticleScope = isTwitterArticleTranslationScope(article);
+            if (!isArticleScope) {
+                const nativeState = await toggleNativeTwitterTranslation(article);
+                if (nativeState) {
+                    showToast(nativeState === "original" ? "已显示原文" : "翻译已显示", "success", 1600);
+                    return;
+                }
             }
 
             const existingState = toggleExistingInlineTranslation(article);
@@ -1655,6 +1649,7 @@
                 }
                 showToast("翻译已显示", "success", 2200);
             } catch (error) {
+                clearInlineTranslationStatus(article);
                 console.error("[x2md] 翻译失败：", error);
                 showToast("翻译失败，请点进推文后重试", "error", 4500);
             }
@@ -1713,7 +1708,7 @@
             return;
         }
 
-        document.querySelectorAll("article, [role='article']").forEach((article) => {
+        document.querySelectorAll('article[data-testid="tweet"]').forEach((article) => {
             const grokButton = article.querySelector(X_GROK_BUTTON_SELECTORS);
             if (!grokButton || !grokButton.parentElement) return;
 
@@ -1729,16 +1724,7 @@
             }
         });
 
-        if (isNotePageUrl() && !document.querySelector(`.${X_INLINE_COPY_BUTTON_CLASS}`)) {
-            const grokButton = document.querySelector(X_GROK_BUTTON_SELECTORS);
-            if (grokButton?.parentElement) {
-                const copyButton = buildTwitterInlineCopyButton(grokButton);
-                const translateButton = buildTwitterInlineTranslateButton(grokButton);
-                grokButton.parentElement.insertBefore(copyButton, grokButton);
-                copyButton.insertAdjacentElement("afterend", translateButton);
-                return;
-            }
-
+        if (isTwitterArticleTranslationScope(document) && !document.querySelector(`.${X_INLINE_COPY_BUTTON_CLASS}`)) {
             let container = document.querySelector(`.${X_INLINE_ACTIONS_CONTAINER_CLASS}`);
             if (!container) {
                 container = document.createElement("div");

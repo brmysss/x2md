@@ -29,6 +29,48 @@
         };
     }
 
+    async function translateArticleTextSegments(parts = {}, translate) {
+        if (typeof translate !== "function") throw new TypeError("translate must be a function");
+
+        const title = normalizeSpaces(parts.title || "");
+        const paragraphs = Array.from(parts.paragraphs || [])
+            .map((paragraph) => normalizeSpaces(paragraph))
+            .filter(Boolean);
+        const total = paragraphs.length + (title ? 1 : 0);
+        let completed = 0;
+        let translatedTitle = "";
+
+        if (title) {
+            translatedTitle = normalizeSpaces(await translate(title, {
+                kind: "title",
+                completed,
+                total,
+            }));
+            if (!translatedTitle) throw new Error("empty article title translation");
+            completed++;
+        }
+
+        const translatedParagraphs = [];
+        for (const paragraph of paragraphs) {
+            const translated = normalizeSpaces(await translate(paragraph, {
+                kind: "paragraph",
+                completed,
+                total,
+            }));
+            if (!translated) throw new Error("empty article paragraph translation");
+            translatedParagraphs.push(translated);
+            completed++;
+        }
+
+        const translatedBody = translatedParagraphs.join("\n\n");
+        return {
+            translatedTitle,
+            translatedParagraphs,
+            translatedBody,
+            translatedText: [translatedTitle, translatedBody].filter(Boolean).join("\n\n"),
+        };
+    }
+
 
 
     function normalizeXArticleUrlForCompare(url) {
@@ -226,6 +268,7 @@
         markdownToClipboardPlainText,
         hasInlineMarkdownLinks,
         buildArticleTranslationSource,
+        translateArticleTextSegments,
         cleanupTwitterDisplayUrlLineBreaks,
         isExpandableTweetTextControl,
         normalizeSpaces,

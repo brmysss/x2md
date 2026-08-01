@@ -71,6 +71,20 @@ test("article-card save owns its status URL lookup instead of relying on capture
     assert.match(source, /function findFirstStatusUrl\s*\(/);
 });
 
+test("article translation scopes its title, uses Draft blocks, and bypasses native tweet translation", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "x-translation-ui.js"), "utf8");
+    assert.match(source, /twitterArticleReadView[^\n]+article\[data-testid=\"tweet\"\]/);
+    assert.match(source, /querySelectorAll\?\.\('\[data-block=\"true\"\]'\)/);
+    assert.match(source, /const isArticleScope = isTwitterArticleTranslationScope\(article\)/);
+    assert.match(source, /if \(!isArticleScope\) \{\s*const nativeState = await toggleNativeTwitterTranslation\(article\)/);
+    assert.match(source, /translateArticleTextSegments[\s\S]+bodyBlocks\.forEach/);
+    assert.match(source, /if \(isTwitterArticleTranslationScope\(document\) && !document\.querySelector/);
+    assert.match(source, /querySelectorAll\('article\[data-testid=\"tweet\"\]'\)/);
+    assert.doesNotMatch(source, /isTwitterArticleTranslationScope\(document\)[\s\S]{0,250}document\.querySelector\(X_GROK_BUTTON_SELECTORS\)/);
+    assert.match(source, /excludedAncestor && bodyEl\.contains\(excludedAncestor\)/);
+    assert.match(source, /if \(target\.kind === "article"\) \{\s*const mainRendered = await translateArticleInPlace\(target\);\s*return mainRendered \? "translated" : "missing";/);
+});
+
 test("long-press auto translation owns its detail-page guard and pointer lifecycle", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "x-translation-ui.js"), "utf8");
     assert.match(source, /function isTwitterDetailOrArticlePage\s*\(/);
