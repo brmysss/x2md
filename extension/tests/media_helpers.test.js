@@ -493,3 +493,59 @@ test("X article link placeholders cannot collide after entity decoding", () => {
 
   assert.equal(article.content, "\uE000X2MD_LINK_0\uE001 [example.com](https://example.com)");
 });
+
+test("X article combines bold and italic on the same Draft range", () => {
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "Combined styles",
+    content_state: {
+      blocks: [{ key: "a", type: "unstyled", text: "word", inlineStyleRanges: [
+        { offset: 0, length: 4, style: "BOLD" },
+        { offset: 0, length: 4, style: "ITALIC" },
+      ] }],
+      entityMap: [],
+    },
+  } } } });
+
+  assert.equal(article.content, "***word***");
+});
+
+test("X article preserves partially overlapping Draft styles without duplicating text", () => {
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "Overlapping styles",
+    content_state: {
+      blocks: [{ key: "a", type: "unstyled", text: "abcde", inlineStyleRanges: [
+        { offset: 0, length: 3, style: "BOLD" },
+        { offset: 2, length: 3, style: "ITALIC" },
+      ] }],
+      entityMap: [],
+    },
+  } } } });
+
+  assert.equal(article.content, "<strong>ab</strong><strong><em>c</em></strong><em>de</em>");
+});
+
+test("X article preserves italic styling on links", () => {
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "Italic link",
+    content_state: {
+      blocks: [{ key: "a", type: "unstyled", text: "link", entityRanges: [
+        { offset: 0, length: 4, key: 0 },
+      ], inlineStyleRanges: [{ offset: 0, length: 4, style: "ITALIC" }] }],
+      entityMap: [{ key: "0", value: { type: "LINK", data: { url: "https://example.com" } } }],
+    },
+  } } } });
+
+  assert.equal(article.content, "*[example.com](https://example.com)*");
+});
+
+test("X article encodes non-ASCII URL whitespace as UTF-8 bytes", () => {
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "Unicode whitespace",
+    content_state: {
+      blocks: [{ key: "a", type: "unstyled", text: "target", entityRanges: [{ offset: 0, length: 6, key: 0 }] }],
+      entityMap: [{ key: "0", value: { type: "LINK", data: { url: "https://example.com/a\u3000b" } } }],
+    },
+  } } } });
+
+  assert.equal(article.content, "[example.com/a%E3%80%80b](https://example.com/a%E3%80%80b)");
+});

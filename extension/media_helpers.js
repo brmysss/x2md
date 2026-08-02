@@ -187,7 +187,40 @@
         if (!/(LINK|URL)/.test(type)) return "";
         const url = decodeXHtmlEntities(readArticleUrlValue(entity?.data || entity));
         if (!/^https?:\/\//i.test(url)) return "";
-        return url.replace(/[()[\]\\\s]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
+        return url.replace(/[()[\]\\\s]/gu, (character) => {
+            const encoded = encodeURIComponent(character);
+            return encoded === character
+                ? `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`
+                : encoded.toUpperCase();
+        });
+    }
+
+    function articleStyleMarker(styles) {
+        const values = new Set(styles.map((range) => String(range?.style || "").toUpperCase()));
+        if (values.has("BOLD") && values.has("ITALIC")) return "***";
+        if (values.has("BOLD")) return "**";
+        if (values.has("ITALIC")) return "*";
+        return "";
+    }
+
+    function renderOverlappingArticleStyles(source, ranges, start, end) {
+        const boundaries = [...new Set([start, end, ...ranges.flatMap((range) => [range.offset, range.offset + range.length])])]
+            .filter((offset) => offset >= start && offset <= end)
+            .sort((left, right) => left - right);
+        let result = "";
+        let active = [];
+        for (let index = 0; index < boundaries.length - 1; index += 1) {
+            const from = boundaries[index];
+            const to = boundaries[index + 1];
+            const next = ["BOLD", "ITALIC"].filter((style) => ranges.some((range) => range.style === style && range.offset <= from && range.offset + range.length >= to));
+            if (next.join() !== active.join()) {
+                result += [...active].reverse().map((style) => style === "BOLD" ? "</strong>" : "</em>").join("");
+                result += next.map((style) => style === "BOLD" ? "<strong>" : "<em>").join("");
+                active = next;
+            }
+            result += source.slice(from, to);
+        }
+        return result + [...active].reverse().map((style) => style === "BOLD" ? "</strong>" : "</em>").join("");
     }
 
     function applyArticleInlineFormatting(text, entityRanges, entities, inlineStyleRanges = [], links = [], tokenPrefix = "\uE000X2MD_LINK_") {
@@ -206,22 +239,38 @@
             const label = source.slice(offset, offset + length);
             if (!label.trim() || label.includes("](") || label.includes("![](")) continue;
             const fullLabel = url.replace(/^https?:\/\//i, "");
-            const isBold = styles.some((style) => String(style?.style || "").toUpperCase().startsWith("BOLD") && rangesOverlap(range, style));
+            const linkStyles = styles.filter((style) => rangesOverlap(range, style));
             const link = `[${fullLabel}](${url})`;
             const placeholder = `${tokenPrefix}${links.length}\uE001`;
-            links.push(isBold ? `**${link}**` : link);
+            const marker = articleStyleMarker(linkStyles);
+            links.push(marker ? `${marker}${link}${marker}` : link);
             operations.push({ offset, length, replacement: placeholder });
         }
-        for (const range of styles) {
-            if (ranges.some((excluded) => rangesOverlap(range, excluded))) continue;
-            const offset = Number(range?.offset || 0);
-            const length = Number(range?.length || 0);
-            if (!Number.isFinite(offset) || !Number.isFinite(length) || length <= 0) continue;
-            if (offset < 0 || offset + length > source.length) continue;
-            const style = String(range?.style || "").toUpperCase();
-            const marker = style.startsWith("BOLD") ? "**" : (style.startsWith("ITALIC") ? "*" : "");
-            if (!marker) continue;
-            operations.push({ offset, length, replacement: `${marker}${source.slice(offset, offset + length)}${marker}` });
+        const validStyles = styles.map((range) => ({
+            offset: Number(range?.offset || 0),
+            length: Number(range?.length || 0),
+            style: String(range?.style || "").toUpperCase(),
+        })).filter((range) => Number.isFinite(range.offset) && Number.isFinite(range.length) && range.length > 0
+            && range.offset >= 0 && range.offset + range.length <= source.length
+            && ["BOLD", "ITALIC"].includes(range.style)
+            && !ranges.some((excluded) => rangesOverlap(range, excluded)))
+            .sort((left, right) => left.offset - right.offset || left.length - right.length);
+        for (let index = 0; index < validStyles.length;) {
+            const component = [validStyles[index]];
+            let end = validStyles[index].offset + validStyles[index].length;
+            index += 1;
+            while (index < validStyles.length && validStyles[index].offset < end) {
+                component.push(validStyles[index]);
+                end = Math.max(end, validStyles[index].offset + validStyles[index].length);
+                index += 1;
+            }
+            const offset = component[0].offset;
+            const sameRange = component.every((range) => range.offset === offset && range.length === end - offset);
+            const marker = articleStyleMarker(component);
+            const replacement = sameRange
+                ? `${marker}${source.slice(offset, end)}${marker}`
+                : renderOverlappingArticleStyles(source, component, offset, end);
+            operations.push({ offset, length: end - offset, replacement });
         }
 
         let result = source;
