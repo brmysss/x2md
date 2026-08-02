@@ -561,3 +561,36 @@ test("X article encodes HTML delimiters and controls inside link URLs", () => {
 
   assert.equal(article.content, "[example.com/%3Ctag%3E%01%60x%22](https://example.com/%3Ctag%3E%01%60x%22)");
 });
+
+test("X article preserves a style range that crosses a link", () => {
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "Style around link",
+    content_state: {
+      blocks: [{ key: "a", type: "unstyled", text: "aa link bb", entityRanges: [
+        { offset: 3, length: 4, key: 0 },
+      ], inlineStyleRanges: [{ offset: 0, length: 10, style: "BOLD" }] }],
+      entityMap: [{ key: "0", value: { type: "LINK", data: { url: "https://example.com" } } }],
+    },
+  } } } });
+
+  assert.equal(article.content, "<strong>aa </strong><strong>[example.com](https://example.com)</strong><strong> bb</strong>");
+});
+
+test("X article link payloads cannot collide with later placeholders", () => {
+  const marker = "&#xE000;X2MD_LINK_1&#xE001;";
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "Link payload collision",
+    content_state: {
+      blocks: [{ key: "a", type: "unstyled", text: "one two", entityRanges: [
+        { offset: 0, length: 3, key: 0 },
+        { offset: 4, length: 3, key: 1 },
+      ] }],
+      entityMap: [
+        { key: "0", value: { type: "LINK", data: { url: `https://one.example/${marker}` } } },
+        { key: "1", value: { type: "LINK", data: { url: "https://two.example" } } },
+      ],
+    },
+  } } } });
+
+  assert.equal(article.content, "[one.example/%EE%80%80X2MD_LINK_1%EE%80%81](https://one.example/%EE%80%80X2MD_LINK_1%EE%80%81) [two.example](https://two.example)");
+});

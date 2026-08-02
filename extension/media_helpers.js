@@ -187,7 +187,7 @@
         if (!/(LINK|URL)/.test(type)) return "";
         const url = decodeXHtmlEntities(readArticleUrlValue(entity?.data || entity));
         if (!/^https?:\/\//i.test(url)) return "";
-        return url.replace(/[\x00-\x20\x7F()[\]\\<>`"\s]/gu, (character) => {
+        return url.replace(/[\x00-\x20\x7F-\u{10FFFF}()[\]\\<>`"\s]/gu, (character) => {
             const encoded = encodeURIComponent(character);
             return encoded === character
                 ? `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`
@@ -201,6 +201,18 @@
         if (values.has("BOLD")) return "**";
         if (values.has("ITALIC")) return "*";
         return "";
+    }
+
+    function wrapArticleStyledValue(value, styles, useHtml = false) {
+        const active = ["BOLD", "ITALIC"].filter((style) => styles.some((range) => String(range?.style || "").toUpperCase() === style));
+        if (!active.length) return value;
+        if (!useHtml) {
+            const marker = articleStyleMarker(styles);
+            return `${marker}${value}${marker}`;
+        }
+        const opening = active.map((style) => style === "BOLD" ? "<strong>" : "<em>").join("");
+        const closing = [...active].reverse().map((style) => style === "BOLD" ? "</strong>" : "</em>").join("");
+        return `${opening}${value}${closing}`;
     }
 
     function renderOverlappingArticleStyles(source, ranges, start, end) {
@@ -228,6 +240,7 @@
         const ranges = Array.isArray(entityRanges) ? entityRanges : [];
         const styles = Array.isArray(inlineStyleRanges) ? inlineStyleRanges : [];
         const operations = [];
+        const linkRanges = [];
         for (const range of ranges) {
             const offset = Number(range?.offset || 0);
             const length = Number(range?.length || 0);
@@ -242,8 +255,10 @@
             const linkStyles = styles.filter((style) => rangesOverlap(range, style));
             const link = `[${fullLabel}](${url})`;
             const placeholder = `${tokenPrefix}${links.length}\uE001`;
-            const marker = articleStyleMarker(linkStyles);
-            links.push(marker ? `${marker}${link}${marker}` : link);
+            const crossesLink = linkStyles.some((style) => Number(style?.offset || 0) < offset
+                || Number(style?.offset || 0) + Number(style?.length || 0) > offset + length);
+            links.push(wrapArticleStyledValue(link, linkStyles, crossesLink));
+            linkRanges.push({ offset, length });
             operations.push({ offset, length, replacement: placeholder });
         }
         const validStyles = styles.map((range) => ({
@@ -252,8 +267,29 @@
             style: String(range?.style || "").toUpperCase(),
         })).filter((range) => Number.isFinite(range.offset) && Number.isFinite(range.length) && range.length > 0
             && range.offset >= 0 && range.offset + range.length <= source.length
-            && ["BOLD", "ITALIC"].includes(range.style)
-            && !ranges.some((excluded) => rangesOverlap(range, excluded)))
+            && ["BOLD", "ITALIC"].includes(range.style))
+            .flatMap((range) => {
+                let fragments = [{ offset: range.offset, end: range.offset + range.length }];
+                let useHtml = false;
+                for (const linkRange of linkRanges) {
+                    const linkStart = linkRange.offset;
+                    const linkEnd = linkStart + linkRange.length;
+                    if (range.offset < linkEnd && linkStart < range.offset + range.length) useHtml = true;
+                    fragments = fragments.flatMap((fragment) => {
+                        if (fragment.end <= linkStart || fragment.offset >= linkEnd) return [fragment];
+                        return [
+                            fragment.offset < linkStart ? { offset: fragment.offset, end: linkStart } : null,
+                            fragment.end > linkEnd ? { offset: linkEnd, end: fragment.end } : null,
+                        ].filter(Boolean);
+                    });
+                }
+                return fragments.map((fragment) => ({
+                    offset: fragment.offset,
+                    length: fragment.end - fragment.offset,
+                    style: range.style,
+                    useHtml,
+                }));
+            })
             .sort((left, right) => left.offset - right.offset || left.length - right.length);
         for (let index = 0; index < validStyles.length;) {
             const component = [validStyles[index]];
@@ -267,7 +303,7 @@
             const offset = component[0].offset;
             const sameRange = component.every((range) => range.offset === offset && range.length === end - offset);
             const marker = articleStyleMarker(component);
-            const replacement = sameRange
+            const replacement = sameRange && !component.some((range) => range.useHtml)
                 ? `${marker}${source.slice(offset, end)}${marker}`
                 : renderOverlappingArticleStyles(source, component, offset, end);
             operations.push({ offset, length: end - offset, replacement });
@@ -413,7 +449,8 @@
         const links = [];
         let tokenPrefix = "\uE000X2MD_LINK_";
         const decodedRawText = decodeXHtmlEntities(rawText);
-        while (rawText.includes(tokenPrefix) || decodedRawText.includes(tokenPrefix)) tokenPrefix += "_";
+        const linkPayloadText = [...entities.values()].map((entity) => readArticleLinkUrl(entity)).join("\n");
+        while (rawText.includes(tokenPrefix) || decodedRawText.includes(tokenPrefix) || linkPayloadText.includes(tokenPrefix)) tokenPrefix += "_";
         const styledText = applyArticleInlineFormatting(rawText, block?.entityRanges, entities, block?.inlineStyleRanges, links, tokenPrefix);
         const text = links
             .reduce((value, link, index) => value.replace(`${tokenPrefix}${index}\uE001`, link), decodeXHtmlEntities(styledText))
