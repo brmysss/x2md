@@ -466,3 +466,30 @@ test("X article links preserve a structured URL trailing parenthesis", () => {
 
   assert.equal(article.content, "[example.com/foo%28bar%29](https://example.com/foo%28bar%29)");
 });
+
+test("X article link placeholders cannot collide after entity decoding", () => {
+  const marker = "&#xE000;X2MD_LINK_0&#xE001;";
+  const article = extractArticleMarkdownFromGraphQL({
+    article: {
+      article_results: {
+        result: {
+          title: "Placeholder collision",
+          content_state: {
+            blocks: [{
+              key: "a",
+              type: "unstyled",
+              text: `${marker} target`,
+              entityRanges: [{ offset: marker.length + 1, length: 6, key: 0 }],
+            }],
+            entityMap: [{
+              key: "0",
+              value: { type: "LINK", data: { url: "https://example.com" } },
+            }],
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(article.content, "\uE000X2MD_LINK_0\uE001 [example.com](https://example.com)");
+});

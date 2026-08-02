@@ -363,7 +363,8 @@
         const rawText = String(block?.text || "");
         const links = [];
         let tokenPrefix = "\uE000X2MD_LINK_";
-        while (rawText.includes(tokenPrefix)) tokenPrefix += "_";
+        const decodedRawText = decodeXHtmlEntities(rawText);
+        while (rawText.includes(tokenPrefix) || decodedRawText.includes(tokenPrefix)) tokenPrefix += "_";
         const styledText = applyArticleInlineFormatting(rawText, block?.entityRanges, entities, block?.inlineStyleRanges, links, tokenPrefix);
         const text = links
             .reduce((value, link, index) => value.replace(`${tokenPrefix}${index}\uE001`, link), decodeXHtmlEntities(styledText))
