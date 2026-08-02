@@ -13,6 +13,7 @@ import { createSaveMetrics, timeSaveStage, type SaveMetrics } from "./save-metri
 import { logSaveMetrics } from "../main/logger.ts";
 import { StateStore } from "./state-store.ts";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 
 export type SaveHistoryEntry = {
   id: string;
@@ -101,7 +102,7 @@ export async function savePayload(data: Record<string, any>, cfg: X2MDConfig | R
   return withCaptureLock(dir, key, async () => {
     const existing = await timeSaveStage(metrics, "dedupe", async () => (await readSaveIndex(dir)).entries[key]);
     const latest = existing?.revisions.find((item) => item.revision === existing.latest_revision);
-    if (existing && policy === "skip") {
+    if (existing && policy === "skip" && latest?.files.length && latest.files.every(existsSync)) {
       const saved = latest?.files || [];
       const historyId = readSaveHistory(dir).find((item) => saved.includes(item.path))?.id;
       return finish({ success: true, outcome: "skipped", capture_key: key, saved, files: saved.map((path, index) => ({ path, ...(historyId && index === 0 ? { history_id: historyId } : {}) })), errors: [], warnings: [], media: { completed: 0, failed: 0, pending: 0 } });

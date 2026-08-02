@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -34,6 +34,17 @@ test("20 concurrent saves of one capture key produce one saved and nineteen skip
   assert.equal(results.filter((item) => item.outcome === "skipped").length, 19);
   const entry = (await readSaveIndex(appDir)).entries[captureKey(capture("1"))];
   assert.equal(entry.revisions.length, 1);
+});
+
+test("a capture can be saved again after its indexed Markdown file is deleted", async () => {
+  const { appDir, cfg } = setup();
+  const first = await savePayload(legacy("deleted"), cfg, appDir, capture("deleted"));
+  rmSync(first.saved[0]);
+
+  const second = await savePayload(legacy("deleted"), cfg, appDir, capture("deleted"));
+
+  assert.equal(second.outcome, "saved");
+  assert.equal(existsSync(second.saved[0]), true);
 });
 
 test("20 different keys with the same title produce unique files", async () => {
