@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  decodeXHtmlEntities,
   extractArticleMarkdownFromGraphQL,
   extractArticleMediaVideos,
   fillArticleVideoPlaceholders,
@@ -9,6 +10,14 @@ const {
   removeTweetImagesIncludedInQuote,
   normalizeTweetMediaUrlForCompare,
 } = require("../media_helpers.js");
+
+test("decodeXHtmlEntities normalizes X text without double-decoding literals", () => {
+  assert.equal(
+    decodeXHtmlEntities("精度&gt;情绪 &lt;tag&gt; A&amp;B &quot;双引号&quot; &#39;单引号&#39; &#62; &#x3C; a&nbsp;b"),
+    "精度>情绪 <tag> A&B \"双引号\" '单引号' > < a b",
+  );
+  assert.equal(decodeXHtmlEntities("&amp;gt; &unknown;"), "&gt; &unknown;");
+});
 
 test("normalizeTweetMediaUrlForCompare treats X media extension and format variants as one image", () => {
   assert.equal(
@@ -200,14 +209,14 @@ test("extractArticleMarkdownFromGraphQL converts X article rich content and medi
     article: {
       article_results: {
         result: {
-          title: "Article Title",
+          title: "Article &amp; Title",
           metadata: { first_published_at_secs: 1770000000 },
           cover_media: {
             media_info: { original_img_url: "https://pbs.twimg.com/media/cover.jpg" },
           },
           content_state: {
             blocks: [
-              { key: "a", type: "unstyled", text: "Hello world", inlineStyleRanges: [{ offset: 6, length: 5, style: "BOLD" }] },
+              { key: "a", type: "unstyled", text: "精度&gt;情绪", inlineStyleRanges: [] },
               { key: "b", type: "atomic", text: "", entityRanges: [{ key: 0, offset: 0, length: 1 }] },
               { key: "c", type: "unordered-list-item", text: "one" },
             ],
@@ -233,9 +242,9 @@ test("extractArticleMarkdownFromGraphQL converts X article rich content and medi
   };
 
   const article = extractArticleMarkdownFromGraphQL(result);
-  assert.equal(article.title, "Article Title");
+  assert.equal(article.title, "Article & Title");
   assert.match(article.content, /!\[]\(https:\/\/pbs\.twimg\.com\/media\/cover\.jpg\?format=jpg&name=orig\)/);
-  assert.match(article.content, /Hello \*\*world\*\*/);
+  assert.match(article.content, /精度>情绪/);
   assert.match(article.content, /!\[]\(https:\/\/pbs\.twimg\.com\/media\/body\.png\?format=png&name=orig\)/);
   assert.match(article.content, /- one/);
   assert.deepEqual(article.images, [

@@ -1,4 +1,26 @@
 (function (globalScope) {
+    function decodeXHtmlEntities(value) {
+        const namedEntities = {
+            amp: "&",
+            apos: "'",
+            gt: ">",
+            lt: "<",
+            nbsp: " ",
+            quot: '"',
+        };
+
+        return String(value || "").replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (match, decimal, hex, name) => {
+            if (name) return namedEntities[name.toLowerCase()] ?? match;
+
+            const codePoint = Number.parseInt(decimal || hex, hex ? 16 : 10);
+            if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff ||
+                (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+                return match;
+            }
+            return String.fromCodePoint(codePoint);
+        });
+    }
+
     function getVariantBitrate(variant) {
         if (!variant || typeof variant !== "object") return -1;
         if (typeof variant.bitrate === "number") return variant.bitrate;
@@ -179,7 +201,7 @@
     function readArticleLinkUrl(entity) {
         const type = String(entity?.type || "").toUpperCase();
         if (!/(LINK|URL)/.test(type)) return "";
-        const url = readArticleUrlValue(entity?.data || entity);
+        const url = decodeXHtmlEntities(readArticleUrlValue(entity?.data || entity));
         if (!/^https?:\/\//i.test(url)) return "";
         return url.replace(/[\s)]+$/g, "");
     }
@@ -207,7 +229,7 @@
 
 
     function cleanArticleCodeText(value) {
-        return String(value || "")
+        return decodeXHtmlEntities(value)
             .replace(/\u200b/g, "")
             .replace(/\r\n/g, "\n")
             .trimEnd();
@@ -221,7 +243,7 @@
     }
 
     function cleanArticleMarkdownText(value) {
-        return String(value || "")
+        return decodeXHtmlEntities(value)
             .replace(/\u200b/g, "")
             .replace(/\r\n/g, "\n")
             .trim();
@@ -321,7 +343,7 @@
             const markdown = articleMediaInfoToMarkdown(mediaInfo, images);
             if (markdown) lines.push(markdown);
         }
-        if (data.caption && lines.length) lines.push(String(data.caption).trim());
+        if (data.caption && lines.length) lines.push(decodeXHtmlEntities(data.caption).trim());
         return lines.join("\n\n");
     }
 
@@ -334,10 +356,11 @@
             if (rendered) entityParts.push(rendered);
         }
 
-        const inlineText = applyArticleInlineEntities(block?.text || "", block?.entityRanges, entities, block?.inlineStyleRanges);
+        const decodedText = decodeXHtmlEntities(block?.text || "");
+        const inlineText = applyArticleInlineEntities(decodedText, block?.entityRanges, entities, block?.inlineStyleRanges);
         const text = applyArticleInlineStyles(inlineText, block?.inlineStyleRanges, block?.entityRanges).trim();
         if (isArticleCodeBlock(block)) {
-            return formatArticleCodeFence(block?.text || "", readArticleCodeLanguage(block?.data || {}));
+            return formatArticleCodeFence(decodedText, readArticleCodeLanguage(block?.data || {}));
         }
         if (type === "atomic") return entityParts.join("\n\n");
         if (type === "header-one") return text ? `# ${text}` : "";
@@ -369,13 +392,13 @@
         const content = [coverMarkdown, body].filter(Boolean).join("\n\n").trim();
         if (!content) return null;
 
-        const title = String(article.title || "").trim();
+        const title = decodeXHtmlEntities(article.title).trim();
         const publishedSecs = article?.metadata?.first_published_at_secs;
         const published = publishedSecs ? new Date(Number(publishedSecs) * 1000).toISOString() : "";
         return {
             title,
             content,
-            plainText: [title, body || blocks.map((block) => block?.text || "").filter(Boolean).join("\n\n")]
+            plainText: [title, body || blocks.map((block) => decodeXHtmlEntities(block?.text || "")).filter(Boolean).join("\n\n")]
                 .filter(Boolean)
                 .join("\n\n"),
             images: Array.from(new Set(images)),
@@ -455,6 +478,7 @@
     }
 
     const exported = {
+        decodeXHtmlEntities,
         fillArticleVideoPlaceholders,
         extractArticleMarkdownFromGraphQL,
         extractArticleMediaVideos,

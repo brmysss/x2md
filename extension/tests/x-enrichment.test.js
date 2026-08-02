@@ -2,9 +2,22 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 // The module's runtime-only Chrome dependencies are referenced lazily by enrich modes.
-global.mergeTweetImagesWithDomFallback = (api = [], dom = []) => Array.from(new Set([...api, ...dom]));
+Object.assign(global, require("../media_helpers.js"));
+Object.assign(global, require("../twitter_graphql.js"));
 require("../x-enrichment.js");
-const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities } = global.X2MDXEnrichment;
+const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet } = global.X2MDXEnrichment;
+
+test("GraphQL tweet text decodes HTML entities before Markdown rendering", () => {
+    const parsed = parseLegacyTweet({
+        legacy: {
+            full_text: "精度&gt;情绪 A&amp;B &quot;引用&quot; &#39;单引号&#39;",
+            entities: {},
+        },
+    }, { name: "作者 &amp; 合作者", screen_name: "author" });
+
+    assert.equal(parsed.text, "精度>情绪 A&B \"引用\" '单引号'");
+    assert.equal(parsed.author, "作者 & 合作者");
+});
 
 test("expanded tweet links use the full URL as label while hiding the protocol", () => {
     assert.equal(

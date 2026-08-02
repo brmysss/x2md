@@ -580,9 +580,9 @@ function parseLegacyTweet(result, userLegacy, options = {}) {
     // X 对于非常长的推文（非专有 article）会把全文存放在 note_tweet 中
     const noteTweetResult = tweet?.note_tweet?.note_tweet_results?.result || result.note_tweet?.note_tweet_results?.result || result.tweet?.note_tweet?.note_tweet_results?.result;
     if (noteTweetResult && noteTweetResult.text) {
-        text = noteTweetResult.text;
+        text = decodeXHtmlEntities(noteTweetResult.text);
     } else {
-        text = legacy.full_text || legacy.text || "";
+        text = decodeXHtmlEntities(legacy.full_text || legacy.text || "");
     }
 
     // 聚合并清理 t.co 链接（转换为 Markdown 格式）
@@ -653,7 +653,7 @@ function parseLegacyTweet(result, userLegacy, options = {}) {
     videoDurations.push(...articleMedia.videoDurations);
     const graphqlArticle = extractArticleMarkdownFromGraphQL(tweet || result);
 
-    const author = userLegacy?.name || "";
+    const author = decodeXHtmlEntities(userLegacy?.name || "");
     const handle = userLegacy?.screen_name ? "@" + userLegacy.screen_name : "";
     const published = legacy.created_at || "";
 
@@ -712,12 +712,10 @@ async function fetchViaOEmbed(tweetUrl) {
         const html = json.html || "";
         const pMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
         const rawText = pMatch ? pMatch[1] : html;
-        const text = rawText
+        const text = decodeXHtmlEntities(rawText
             .replace(/<br\s*\/?>/gi, "\n")
             .replace(/<[^>]+>/g, "")
-            .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-            .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
-            .replace(/pic\.twitter\.com\/\S+/g, "")
+            .replace(/pic\.twitter\.com\/\S+/g, ""))
             .trim();
 
         return { text, images: [] };
@@ -1115,7 +1113,7 @@ async function enrichCaptureData(input) {
         }
     }
 
-    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities };
+    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet };
     root.X2MDXEnrichment = api;
     if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : self);
