@@ -187,9 +187,7 @@
         if (!/(LINK|URL)/.test(type)) return "";
         const url = decodeXHtmlEntities(readArticleUrlValue(entity?.data || entity));
         if (!/^https?:\/\//i.test(url)) return "";
-        return url
-            .replace(/[\s)]+$/g, "")
-            .replace(/[()[\]\\\s]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
+        return url.replace(/[()[\]\\\s]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
     }
 
     function applyArticleInlineFormatting(text, entityRanges, entities, inlineStyleRanges = [], links = [], tokenPrefix = "\uE000X2MD_LINK_") {

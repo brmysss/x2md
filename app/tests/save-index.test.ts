@@ -63,6 +63,8 @@ test("skip restores only a missing target without duplicating intact targets", a
   assert.equal(existsSync(intact), true);
   assert.equal(existsSync(missing), true);
   assert.equal(existsSync(intact.replace(/\.md$/, "_2.md")), false);
+  const entry = (await readSaveIndex(appDir)).entries[captureKey(capture("partial"))];
+  assert.deepEqual(new Set(entry.revisions.at(-1)?.files), new Set(first.saved));
 });
 
 test("20 different keys with the same title produce unique files", async () => {

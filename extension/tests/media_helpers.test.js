@@ -440,3 +440,29 @@ test("X article links keep overlapping bold styles", () => {
 
   assert.equal(article.content, "**[example.com](https://example.com)**");
 });
+
+test("X article links preserve a structured URL trailing parenthesis", () => {
+  const article = extractArticleMarkdownFromGraphQL({
+    article: {
+      article_results: {
+        result: {
+          title: "Parenthesized link",
+          content_state: {
+            blocks: [{
+              key: "a",
+              type: "unstyled",
+              text: "target",
+              entityRanges: [{ offset: 0, length: 6, key: 0 }],
+            }],
+            entityMap: [{
+              key: "0",
+              value: { type: "LINK", data: { url: "https://example.com/foo(bar)" } },
+            }],
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(article.content, "[example.com/foo%28bar%29](https://example.com/foo%28bar%29)");
+});
