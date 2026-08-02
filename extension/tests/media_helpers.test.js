@@ -314,3 +314,23 @@ test("extractArticleMarkdownFromGraphQL keeps Draft code-block blocks", () => {
   const article = extractArticleMarkdownFromGraphQL(result);
   assert.match(article.content, /```sh\nln -s ~\/.agent\/skills ~\/.gemini\/antigravity\/skills\n```/);
 });
+
+test("X article code blocks decode HTML entities exactly once", () => {
+  const article = extractArticleMarkdownFromGraphQL({
+    article: {
+      article_results: {
+        result: {
+          title: "Code entities",
+          content_state: {
+            blocks: [
+              { key: "a", type: "code-block", text: "&amp;gt;\n精度&gt;情绪" },
+            ],
+            entityMap: [],
+          },
+        },
+      },
+    },
+  });
+
+  assert.match(article.content, /```\n&gt;\n精度>情绪\n```/);
+});

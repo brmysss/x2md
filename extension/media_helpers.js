@@ -360,7 +360,7 @@
         const inlineText = applyArticleInlineEntities(decodedText, block?.entityRanges, entities, block?.inlineStyleRanges);
         const text = applyArticleInlineStyles(inlineText, block?.inlineStyleRanges, block?.entityRanges).trim();
         if (isArticleCodeBlock(block)) {
-            return formatArticleCodeFence(decodedText, readArticleCodeLanguage(block?.data || {}));
+            return formatArticleCodeFence(block?.text || "", readArticleCodeLanguage(block?.data || {}));
         }
         if (type === "atomic") return entityParts.join("\n\n");
         if (type === "header-one") return text ? `# ${text}` : "";
