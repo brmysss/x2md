@@ -14,9 +14,8 @@ Tag release 会包含：
 - `X2MD_Mac.zip`：Mac Electrobun 版 `.app`
 - `X2MD_Windows.zip`：迁移期 Windows legacy 版，由 CI Windows runner 生成
 - `X2MD_Extension.zip`：Chrome 扩展
-- `SHA256SUMS.txt`：校验文件
 
-本仓库内 `release/v2.0.0/` 保存本机可复验的 Mac 包、扩展包和校验文件；Windows zip 以 CI artifact/release 为准。
+本仓库内 `release/v2.0.0/` 保存本机可复验的 Mac 包和扩展包；Windows zip 以 CI artifact/release 为准。
 
 ## 主要变化
 

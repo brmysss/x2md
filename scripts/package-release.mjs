@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, cpSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -32,15 +32,7 @@ execFileSync("zip", ["-qr", join(releasePath, "X2MD_Extension.zip"), ".", "-x", 
 cpSync(windowsZip, join(releasePath, "X2MD_Windows_Beta.zip"));
 cpSync(provenanceBundle, join(releasePath, "PROVENANCE.sigstore.json"));
 
-if (existsSync("artifacts/stable-macos-arm64-update.json")) {
-  cpSync("artifacts/stable-macos-arm64-update.json", join(releasePath, "update.json"));
-} else {
-  writeFileSync(join(releasePath, "update.json"), JSON.stringify({ version, notes: `X2MD v${version}` }, null, 2), "utf8");
-}
-
 const notesPath = join("release", `v${version}`, "RELEASE_NOTES.md");
 if (existsSync(notesPath)) cpSync(notesPath, join(releasePath, "RELEASE_NOTES.md"));
 execFileSync(process.execPath, ["node_modules/@cyclonedx/cyclonedx-npm/bin/cyclonedx-npm-cli.js", "--output-file", join(releasePath, "SBOM.cdx.json"), "--omit", "dev"], { stdio: "inherit" });
-const sums = execFileSync("shasum", ["-a", "256", "X2MD_Mac.zip", "X2MD_Extension.zip", "X2MD_Windows_Beta.zip", "update.json", "SBOM.cdx.json", "PROVENANCE.sigstore.json"], { cwd: releasePath, encoding: "utf8" });
-writeFileSync(join(releasePath, "SHA256SUMS.txt"), sums, "utf8");
 console.log(`packaged release ${releasePath}`);

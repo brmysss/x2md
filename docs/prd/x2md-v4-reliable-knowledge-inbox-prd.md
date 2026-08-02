@@ -474,7 +474,7 @@ queued → running → paused → running → completed
 ### F4. 可复现发布（P1）
 
 - 依赖使用 frozen lock。
-- release 生成 SHA、SBOM 和 provenance。
+- release 生成 SBOM 和 provenance。
 - GitHub Actions pin 到明确 commit SHA。
 - 二进制仅上传 GitHub Releases。
 
@@ -628,7 +628,7 @@ X2MD  v4.x
 - [ ] PR/main CI 全量运行且无 skipped gate。
 - [ ] Mac stable 通过签名、公证和真实 artifact smoke。
 - [ ] Windows 只有在 TS artifact smoke 通过后标记 stable。
-- [ ] GitHub Release 包含 SHA、SBOM 和 provenance。
+- [ ] GitHub Release 包含 SBOM 和 provenance。
 
 ## 14. 指标
 

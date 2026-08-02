@@ -8,8 +8,8 @@
 
 ## 安装与首次连接
 
-1. 从同一个候选 Release 下载 `X2MD_Mac.zip` 与 `X2MD_Extension.zip`，并用
-   `SHA256SUMS.txt` 校验。v4 stable 在 H02 的 Developer ID/notary/staple 证据完成前保持阻塞。
+1. 从同一个候选 Release 下载 `X2MD_Mac.zip` 与 `X2MD_Extension.zip`。v4 stable 在 H02 的
+   Developer ID/notary/staple 证据完成前保持阻塞。
 2. 启动 App，按 Setup Doctor 完成运行环境、保存目录、扩展和本地样例四步检查。
 3. 重新加载扩展，在连接页输入桌面设置显示的单次 6 位配对码。旧版无认证连接不会沿用。
 4. 如果扩展报告凭据失效，重新生成配对码；不要尝试切换端口或把 token 写入配置/fixture。

@@ -31,4 +31,4 @@
 | PR/main CI 全量运行且无 skipped gate。 | 待验证 | workflow 已 fail-closed；仍需远端 PR/main run URL |
 | Mac stable 通过签名、公证和真实 artifact smoke。 | 人工门禁 H02 | 需要 Developer ID、notary accepted、stapler validate 证据 |
 | Windows 只有在 TS artifact smoke 通过后标记 stable。 | 待验证 | beta workflow gate 已实现；需 windows-latest 成功 run，当前不宣称 Stable |
-| GitHub Release 包含 SHA、SBOM 和 provenance。 | 待验证 | fail-closed release workflow 已实现；需候选 Release artifact 证据 |
+| GitHub Release 包含 SBOM 和 provenance。 | 待验证 | fail-closed release workflow 已实现；需候选 Release artifact 证据 |

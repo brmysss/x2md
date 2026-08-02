@@ -43,7 +43,7 @@ npm run smoke:mac:menu-visible
 # 验证最终 release zip 解压后的 .app（不是中间 build 目录）
 npm run smoke:mac:release
 
-# Release SHA 和包体积阈值
+# Release 产物结构和包体积阈值
 npm run check:release-artifacts
 ```
 
@@ -84,8 +84,7 @@ CI 默认产出：
 - `X2MD_Mac.zip`：Electrobun `.app`
 - `X2MD_Extension.zip`：Chrome 扩展
 - `X2MD_Windows_Beta.zip`：windows-latest 上 Bun compile 的 TypeScript runtime
-- `update.json`、`SBOM.cdx.json`、`PROVENANCE.sigstore.json`
-- `SHA256SUMS.txt`
+- `SBOM.cdx.json`、`PROVENANCE.sigstore.json`
 
 发布二进制统一生成到未纳入 Git 的 `artifacts/v<version>/`；也可用
 `node scripts/package-release.mjs --windows-zip <Windows CI 产物> --provenance <Sigstore bundle> --output-dir <临时目录>`
@@ -96,7 +95,6 @@ CI 默认产出：
 
 正式依赖安装一律使用 `npm ci`/`package-lock.json`；CI 同时执行 npm audit、固定版
 `pip-audit`、fixture privacy 与 coverage 门槛。所有第三方 Actions 固定到完整 commit SHA。
-checksum 覆盖三个压缩包、update metadata、CycloneDX SBOM 和 Sigstore provenance bundle。
 
 ## Python legacy（冻结兼容实现）
 

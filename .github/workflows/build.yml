@@ -66,7 +66,6 @@ jobs:
           test -n "$APP_PATH"
           test -d "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" X2MD_Mac.zip
-          cp artifacts/stable-macos-arm64-update.json update.json
 
       - name: 解压并校验最终 Mac 压缩包
         env:
@@ -103,9 +102,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: X2MD_Mac
-          path: |
-            X2MD_Mac.zip
-            update.json
+          path: X2MD_Mac.zip
           retention-days: 30
 
   package-extension:
@@ -194,13 +191,11 @@ jobs:
             X2MD_Mac.zip
             X2MD_Extension.zip
             X2MD_Windows_Beta.zip
-            update.json
             SBOM.cdx.json
 
-      - name: 保存 provenance bundle 并生成 SHA256
+      - name: 保存 provenance bundle
         run: |
           cp "${{ steps.provenance.outputs.bundle-path }}" PROVENANCE.sigstore.json
-          sha256sum X2MD_Mac.zip X2MD_Extension.zip X2MD_Windows_Beta.zip update.json SBOM.cdx.json PROVENANCE.sigstore.json > SHA256SUMS.txt
           node scripts/check-release-artifacts.mjs --dir .
 
       - name: 校验最终下载产物
@@ -208,7 +203,6 @@ jobs:
           node scripts/check-release-artifacts.mjs --mac-zip X2MD_Mac.zip
           unzip -q X2MD_Extension.zip -d /tmp/x2md-extension-final
           test -f /tmp/x2md-extension-final/manifest.json
-          sha256sum -c SHA256SUMS.txt
 
       - name: 准备 Release Notes
         run: |
@@ -228,9 +222,7 @@ jobs:
             X2MD_Mac.zip
             X2MD_Extension.zip
             X2MD_Windows_Beta.zip
-            update.json
             SBOM.cdx.json
             PROVENANCE.sigstore.json
-            SHA256SUMS.txt
           draft: false
           prerelease: false

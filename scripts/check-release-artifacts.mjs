@@ -19,13 +19,9 @@ const releaseDir = dirIndex >= 0 ? args[dirIndex + 1] : `artifacts/v${pkg.versio
 const macZip = macOnlyZip || join(releaseDir, "X2MD_Mac.zip");
 const extZip = join(releaseDir, "X2MD_Extension.zip");
 const winZip = join(releaseDir, "X2MD_Windows_Beta.zip");
-const updateJson = join(releaseDir, "update.json");
 const sbom = join(releaseDir, "SBOM.cdx.json");
 const provenance = join(releaseDir, "PROVENANCE.sigstore.json");
-const sums = join(releaseDir, "SHA256SUMS.txt");
-for (const file of macOnlyZip ? [macZip] : [macZip, extZip, winZip, updateJson, sbom, provenance, sums]) if (!existsSync(file)) throw new Error(`missing release artifact: ${file}`);
-
-if (!macOnlyZip) execFileSync("shasum", ["-a", "256", "-c", "SHA256SUMS.txt"], { cwd: releaseDir, stdio: "inherit" });
+for (const file of macOnlyZip ? [macZip] : [macZip, extZip, winZip, sbom, provenance]) if (!existsSync(file)) throw new Error(`missing release artifact: ${file}`);
 
 const zipMb = statSync(macZip).size / 1024 / 1024;
 if (zipMb > 30) throw new Error(`X2MD_Mac.zip too large: ${zipMb.toFixed(1)}MB > 30MB`);
@@ -60,8 +56,6 @@ try {
     console.log(`mac release artifact ok: zip=${zipMb.toFixed(1)}MB app=${appMb.toFixed(1)}MB version=${pkg.version}`);
     process.exit(0);
   }
-  const recorded = readFileSync(sums, "utf8");
-  for (const name of ["X2MD_Mac.zip", "X2MD_Extension.zip", "X2MD_Windows_Beta.zip", "update.json", "SBOM.cdx.json", "PROVENANCE.sigstore.json"]) if (!recorded.includes(name)) throw new Error(`SHA256SUMS missing ${name}`);
   const sbomJson = JSON.parse(readFileSync(sbom, "utf8"));
   if (sbomJson.bomFormat !== "CycloneDX" || !Array.isArray(sbomJson.components)) throw new Error("SBOM.cdx.json is not a CycloneDX SBOM");
   const provenanceJson = JSON.parse(readFileSync(provenance, "utf8"));
@@ -75,10 +69,6 @@ try {
   const manifest = JSON.parse(readFileSync(join(extDir, "manifest.json"), "utf8"));
   if (manifest.manifest_version !== 3 || !String(manifest.name || "").includes("X2MD")) throw new Error("X2MD_Extension.zip manifest invalid");
   if (manifest.version !== expectedExtensionVersion) throw new Error(`X2MD_Extension.zip version mismatch: ${manifest.version} != ${expectedExtensionVersion}`);
-  const update = JSON.parse(readFileSync(updateJson, "utf8"));
-  if (!update.version && !update.updateInfo && !update.artifacts) throw new Error("update.json missing update metadata");
-  if (update.version && update.version !== pkg.version) throw new Error(`update.json version mismatch: ${update.version} != ${pkg.version}`);
-
   const winDir = join(dir, "windows");
   execFileSync("unzip", ["-q", winZip, "-d", winDir]);
   for (const file of ["X2MD_Windows_Beta/x2md.exe", "X2MD_Windows_Beta/artifact.json"]) {

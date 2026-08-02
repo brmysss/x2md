@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const checkOnly = process.argv.includes("--check");
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
@@ -34,16 +34,6 @@ if (!nextConfigSource.includes(`export const VERSION = "${displayVersion}";`) ||
   throw new Error("failed to locate app version constants");
 }
 syncText(configPath, configSource, nextConfigSource);
-
-const releaseMetadataPath = `release/v${displayVersion}/update.json`;
-if (existsSync(releaseMetadataPath)) {
-  const metadataSource = readFileSync(releaseMetadataPath, "utf8");
-  const metadata = JSON.parse(metadataSource);
-  if (String(metadata.version) !== displayVersion) {
-    metadata.version = displayVersion;
-    syncText(releaseMetadataPath, metadataSource, `${JSON.stringify(metadata)}\n`);
-  }
-}
 
 const readme = readFileSync("README.md", "utf8");
 if (/github\.com\/izscc\/x2md\/releases\/(?:tag|download)\/v\d/i.test(readme)) {

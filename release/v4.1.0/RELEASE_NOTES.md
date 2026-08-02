@@ -35,5 +35,3 @@ X2MD 4.1 聚焦 X 长文章的翻译体验、文章工具栏稳定性和桌面�
 - `X2MD_Mac.zip`（arm64，ad-hoc 签名，未公证）
 - `X2MD_Extension.zip`
 - `X2MD_Windows_Beta.zip`
-- `update.json`
-- `SHA256SUMS.txt`

@@ -14,7 +14,7 @@ X2MD 4.0 将桌面 App 作为唯一配置与保存核心，重点提升本地保
 
 - 本地 API 固定使用 `127.0.0.1:9527`，并要求扩展通过一次性配对码完成认证。
 - 收紧 Origin、请求契约、配置 schema、下载地址和文件输出边界。
-- Release 流水线增加最终压缩包 smoke、依赖审计、SBOM、Sigstore provenance、SHA256、Developer ID 签名与 Apple 公证门禁。
+- Release 流水线增加最终压缩包 smoke、依赖审计、SBOM、Sigstore provenance、Developer ID 签名与 Apple 公证门禁。
 
 ## 修复
 
@@ -37,7 +37,5 @@ X2MD 4.0 将桌面 App 作为唯一配置与保存核心，重点提升本地保
 - `X2MD_Mac.zip`
 - `X2MD_Extension.zip`
 - `X2MD_Windows_Beta.zip`
-- `update.json`
 - `SBOM.cdx.json`
 - `PROVENANCE.sigstore.json`
-- `SHA256SUMS.txt`

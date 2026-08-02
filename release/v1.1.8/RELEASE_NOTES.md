@@ -11,4 +11,3 @@
 - `X2MD_Mac.zip`
 - `X2MD_Windows.zip`
 - `X2MD_Extension.zip`
-- `SHA256SUMS.txt`

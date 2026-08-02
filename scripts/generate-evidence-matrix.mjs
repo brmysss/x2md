@@ -30,7 +30,7 @@ const rows = [
   ["PR/main CI 全量运行且无 skipped gate。", "待验证", "workflow 已 fail-closed；仍需远端 PR/main run URL"],
   ["Mac stable 通过签名、公证和真实 artifact smoke。", "人工门禁 H02", "需要 Developer ID、notary accepted、stapler validate 证据"],
   ["Windows 只有在 TS artifact smoke 通过后标记 stable。", "待验证", "beta workflow gate 已实现；需 windows-latest 成功 run，当前不宣称 Stable"],
-  ["GitHub Release 包含 SHA、SBOM 和 provenance。", "待验证", "fail-closed release workflow 已实现；需候选 Release artifact 证据"],
+  ["GitHub Release 包含 SBOM 和 provenance。", "待验证", "fail-closed release workflow 已实现；需候选 Release artifact 证据"],
 ];
 
 const output = `# X2MD v4 Requirement–Evidence Matrix\n\n> 由 \`npm run generate:evidence-matrix\` 生成。只有“已验证”条目具备当前仓库证据；人工门禁不会自动完成。\n\n| PRD §13 Acceptance Criterion | 状态 | 权威证据 |\n|---|---|---|\n${rows.map(([criterion, status, evidence]) => `| ${criterion.replaceAll("|", "\\|")} | ${status} | ${evidence.replaceAll("|", "\\|")} |`).join("\n")}\n`;
