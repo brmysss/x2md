@@ -7,9 +7,147 @@ const {
     cleanupTwitterDisplayUrlLineBreaks,
     isExpandableTweetTextControl,
     isProbablySimplifiedChinese,
+    restoreTranslatedLinks,
     stripXArticleLinksFromText,
     translateArticleTextSegments,
 } = require("../translation_helpers.js");
+
+test("restoreTranslatedLinks preserves all original anchors and removes split synthetic protocols", () => {
+    const result = restoreTranslatedLinks("源码：\nhttps://\ngithub.com/WinterArc21/HQ 流量……\n尝试一下：\n\nhttps://\nhqflow.vercel.app", [
+        {
+            type: "url",
+            displayText: "github.com/WinterArc21/HQ…",
+            html: '<a href="https://t.co/github">github.com/WinterArc21/HQ…</a>',
+            href: "https://t.co/github",
+            candidates: ["https://t.co/github", "github.com/WinterArc21/HQ…"],
+        },
+        {
+            type: "url",
+            displayText: "hqflow.vercel.app",
+            html: '<a href="https://t.co/example">hqflow.vercel.app</a>',
+            href: "https://t.co/example",
+            candidates: ["https://t.co/example", "hqflow.vercel.app"],
+        },
+    ]);
+
+    assert.deepEqual(result, {
+        text: "源码：\ngithub.com/WinterArc21/HQ… 流量……\n尝试一下：\n\nhqflow.vercel.app",
+        html: '源码：<br><a href="https://t.co/github">github.com/WinterArc21/HQ…</a> 流量……<br>尝试一下：<br><br><a href="https://t.co/example">hqflow.vercel.app</a>',
+        markdown: "源码：\n[github.com/WinterArc21/HQ…](https://t.co/github) 流量……\n尝试一下：\n\n[hqflow.vercel.app](https://t.co/example)",
+    });
+});
+
+test("restoreTranslatedLinks appends an original URL omitted by the translation provider", () => {
+    const result = restoreTranslatedLinks("译文 https://t.co/provider 试用地址：", [{
+        type: "url",
+        displayText: "hqflow.vercel.app",
+        html: '<a href="https://t.co/example">hqflow.vercel.app</a>',
+        href: "https://t.co/example",
+        candidates: ["https://t.co/example", "hqflow.vercel.app"],
+    }]);
+
+    assert.deepEqual(result, {
+        text: "译文 试用地址： hqflow.vercel.app",
+        html: '译文 试用地址： <a href="https://t.co/example">hqflow.vercel.app</a>',
+        markdown: "译文 试用地址： [hqflow.vercel.app](https://t.co/example)",
+    });
+});
+
+test("restoreTranslatedLinks binds repeated labels to their original hrefs one at a time", () => {
+    const result = restoreTranslatedLinks("same.example 然后 same.example", [
+        {
+            type: "url",
+            displayText: "same.example",
+            href: "https://t.co/a",
+            html: '<a href="https://t.co/a">same.example</a>',
+            candidates: ["same.example"],
+        },
+        {
+            type: "url",
+            displayText: "same.example",
+            href: "https://t.co/b",
+            html: '<a href="https://t.co/b">same.example</a>',
+            candidates: ["same.example"],
+        },
+    ]);
+
+    assert.equal(result.html, '<a href="https://t.co/a">same.example</a> 然后 <a href="https://t.co/b">same.example</a>');
+    assert.equal(result.markdown, "[same.example](https://t.co/a) 然后 [same.example](https://t.co/b)");
+});
+
+test("restoreTranslatedLinks enforces URL boundaries and safely removes only bare t.co links", () => {
+    const descriptor = {
+        type: "url",
+        displayText: "example.com/a…",
+        href: "https://t.co/a",
+        html: '<a href="https://t.co/a">example.com/a…</a>',
+        candidates: ["example.com/a…"],
+    };
+    const result = restoreTranslatedLinks(
+        "notexample.com/a example.com/abc example.com/a…-flow https://not.co/abc t.co/abc-def t.co/a_b example.com/a",
+        [descriptor],
+    );
+
+    assert.equal(result.html, 'notexample.com/a example.com/abc example.com/a…-flow https://not.co/abc <a href="https://t.co/a">example.com/a…</a>');
+    assert.equal(result.markdown, 'notexample.com/a example.com/abc example.com/a…-flow https://not.co/abc [example.com/a…](https://t.co/a)');
+});
+
+test("restoreTranslatedLinks chooses placeholders that cannot collide with translated text", () => {
+    const collision = "\uE000X2MD_LINK\uE001";
+    const result = restoreTranslatedLinks(`${collision} example.com`, [{
+        type: "url",
+        displayText: "example.com",
+        href: "https://t.co/example",
+        html: '<a href="https://t.co/example">example.com</a>',
+        candidates: ["example.com"],
+    }]);
+
+    assert.equal(result.text, `${collision} example.com`);
+    assert.equal(result.html, `${collision} <a href="https://t.co/example">example.com</a>`);
+});
+
+test("restoreTranslatedLinks rejects unsafe Markdown targets and encodes parentheses", () => {
+    const unsafe = restoreTranslatedLinks("@victim", [{
+        type: "mention",
+        displayText: "@victim",
+        href: "javascript:alert(1)",
+        html: "<a>@victim</a>",
+        candidates: ["@victim"],
+    }]);
+    const dataUrl = restoreTranslatedLinks("example.com", [{
+        type: "url",
+        displayText: "example.com",
+        href: "data:text/html,<script>alert(1)</script>",
+        html: "<a>example.com</a>",
+        candidates: ["example.com"],
+    }]);
+    const parentheses = restoreTranslatedLinks("example.com/a(b)", [{
+        type: "url",
+        displayText: "example.com/a(b)",
+        href: "https://example.com/a(b)",
+        html: '<a href="https://example.com/a(b)">example.com/a(b)</a>',
+        candidates: ["example.com/a(b)"],
+    }]);
+
+    assert.equal(unsafe.markdown, "@victim");
+    assert.equal(dataUrl.markdown, "example.com");
+    assert.equal(parentheses.markdown, "[example.com/a(b)](https://example.com/a%28b%29)");
+});
+
+test("applyTranslationOverrideToData preserves translated tweet link targets as Markdown", () => {
+    const result = applyTranslationOverrideToData({
+        type: "tweet",
+        text: "Original",
+        prefer_translated_content: true,
+        translation_override: {
+            type: "tweet",
+            text: "查看 example.com",
+            markdown: "查看 [example.com](https://t.co/example)",
+        },
+    });
+
+    assert.equal(result.text, "查看 [example.com](https://t.co/example)");
+});
 
 test("isProbablySimplifiedChinese distinguishes simplified, traditional, and non-Chinese titles", () => {
     assert.equal(isProbablySimplifiedChinese("教你搭建一个 AI 思考知识库"), true);

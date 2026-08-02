@@ -10,8 +10,11 @@
         markdownToClipboardHtml,
         markdownToClipboardPlainText,
         plainTextToClipboardHtml,
+        restoreTranslatedLinks,
         translateArticleTextSegments,
         isProbablySimplifiedChinese,
+        makeLooseInlineTextPattern,
+        normalizeInlineLinkText,
     } = translationHelpers;
     // ─────────────────────────────────────────────
     // X/Twitter 页面内复制正文按钮
@@ -134,6 +137,15 @@
     function getDisplayedTranslationContentForCopy(scope = document) {
         const override = getElementTranslationOverride(scope) || findDescendantTranslationOverride(scope);
         if (override?.source === "article_title_auto") return null;
+        const overrideMarkdown = String(override?.markdown || "").trim();
+        if (overrideMarkdown) {
+            return {
+                text: markdownToClipboardPlainText(overrideMarkdown),
+                html: markdownToClipboardHtml(overrideMarkdown),
+                markdown: overrideMarkdown,
+                source: "visible_translation",
+            };
+        }
         const overrideText = String(override?.text || override?.article_content || "").trim();
         if (overrideText) return { text: overrideText, html: plainTextToClipboardHtml(overrideText), source: "visible_translation" };
 
@@ -228,6 +240,7 @@
         const payload = buildCopyContentPayload(article, triggerButton);
         const visibleTranslation = getDisplayedTranslationContentForCopy(article || document) ||
             (article && article !== document ? getDisplayedTranslationContentForCopy(document) : null);
+        if (visibleTranslation?.markdown) return visibleTranslation;
 
         if (isCopyScopeShowingTranslatedTweet(scope)) {
             try {
@@ -387,19 +400,6 @@
         return null;
     }
 
-    function clearTranslationMark(el) {
-        if (!el) return;
-        delete el.__x2md_translation_override;
-        el.removeAttribute?.("data-x2md-translated");
-    }
-
-    function clearNativeTwitterTranslationOverride(scope = document) {
-        const target = getTranslationTarget(scope);
-        if (target?.textEl?.__x2md_translation_override?.source === "twitter_native") {
-            clearTranslationMark(target.textEl);
-        }
-    }
-
     function markNativeTwitterTranslation(scope = document) {
         const target = getTranslationTarget(scope);
         if (!target || target.kind !== "tweet" || !target.textEl || !target.text) return false;
@@ -411,47 +411,17 @@
         return true;
     }
 
-    async function waitForNativeTwitterTranslationState(scope = document, mode = "original", timeoutMs = 6000) {
+    async function restoreNativeTwitterOriginalForTranslation(scope = document) {
+        const showOriginalButton = findNativeTwitterTranslationControl(scope, "original");
+        if (!showOriginalButton) return false;
+        showOriginalButton.click();
+
         const started = Date.now();
-        while (Date.now() - started < timeoutMs) {
-            if (findNativeTwitterTranslationControl(scope, mode)) return true;
+        while (Date.now() - started < 3000) {
+            if (findNativeTwitterTranslationControl(scope, "translate")) return true;
             await delay(120);
         }
         return false;
-    }
-
-    async function showNativeTwitterTranslation(scope = document) {
-        const target = getTranslationTarget(scope);
-        if (!target || target.kind !== "tweet") return "";
-
-        if (findNativeTwitterTranslationControl(scope, "original")) {
-            markNativeTwitterTranslation(scope);
-            return "cached";
-        }
-
-        const nativeTranslateButton = findNativeTwitterTranslationControl(scope, "translate");
-        if (!nativeTranslateButton) return "";
-
-        nativeTranslateButton.click();
-        const translated = await waitForNativeTwitterTranslationState(scope, "original");
-        if (!translated) return "";
-
-        return markNativeTwitterTranslation(scope) ? "translated" : "";
-    }
-
-    async function toggleNativeTwitterTranslation(scope = document) {
-        const target = getTranslationTarget(scope);
-        if (!target || target.kind !== "tweet") return "";
-
-        const showOriginalButton = findNativeTwitterTranslationControl(scope, "original");
-        if (showOriginalButton) {
-            showOriginalButton.click();
-            await waitForNativeTwitterTranslationState(scope, "translate", 3000);
-            clearNativeTwitterTranslationOverride(scope);
-            return "original";
-        }
-
-        return await showNativeTwitterTranslation(scope);
     }
 
     function findMainTweetTextElement(article, options = {}) {
@@ -760,25 +730,8 @@
         return textarea.value;
     }
 
-    function escapeRegExp(text) {
-        return String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    }
-
     function uniqueNonEmpty(values) {
         return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
-    }
-
-    function normalizeInlineLinkText(text) {
-        return String(text || "").replace(/\s+/g, "");
-    }
-
-    function makeLooseInlineTextPattern(text) {
-        const compact = normalizeInlineLinkText(text);
-        if (!compact) return "";
-        return compact
-            .split("")
-            .map((char) => escapeRegExp(char))
-            .join("\\s*");
     }
 
     function cleanupTranslationMentionLineBreaks(text, descriptors = []) {
@@ -830,13 +783,20 @@
             if (!candidates.length) continue;
 
             const clone = anchor.cloneNode(true);
-            clone.setAttribute("href", href || absoluteRawHref);
+            let safeHref = "";
+            try {
+                const parsedHref = new URL(href || absoluteRawHref, location.origin);
+                if (parsedHref.protocol === "http:" || parsedHref.protocol === "https:") safeHref = parsedHref.href;
+            } catch (error) { }
+            if (safeHref) clone.setAttribute("href", safeHref);
+            else clone.removeAttribute("href");
             clone.setAttribute("rel", "noopener noreferrer nofollow");
             clone.setAttribute("target", "_blank");
 
             descriptors.push({
                 candidates,
                 html: sanitizeTwitterNativeTranslationHtml(clone.outerHTML),
+                href: safeHref,
                 displayText: visibleText,
                 type: isMentionOrHash ? "mention" : (isUrlLike ? "url" : "link"),
             });
@@ -853,37 +813,7 @@
         const descriptors = buildOriginalTweetLinkDescriptors(originalTweetTextEl);
         text = cleanupTranslationMentionLineBreaks(text, descriptors);
 
-        const tokens = [];
-        for (const descriptor of descriptors) {
-            for (const candidate of descriptor.candidates) {
-                if (!candidate) continue;
-                const token = `\uE000${tokens.length}\uE001`;
-                const pattern = descriptor.type === "mention"
-                    ? makeLooseInlineTextPattern(candidate)
-                    : escapeRegExp(candidate);
-                const re = new RegExp(pattern, "g");
-                if (!re.test(text)) continue;
-                text = text.replace(re, token);
-                tokens.push({ token, html: descriptor.html });
-                break;
-            }
-        }
-
-        let html = escapeHtml(text).replace(/\n/g, "<br>");
-        for (const item of tokens) {
-            html = html.split(item.token).join(item.html);
-        }
-
-        return {
-            text: text.replace(/\uE000\d+\uE001/g, (token) => {
-                const item = tokens.find((entry) => entry.token === token);
-                if (!item) return "";
-                const template = document.createElement("template");
-                template.innerHTML = item.html;
-                return template.content.textContent || "";
-            }).trim(),
-            html,
-        };
+        return restoreTranslatedLinks(text, descriptors);
     }
 
     function replaceElementWithNativeTranslation(el, translation, override) {
@@ -1299,9 +1229,7 @@
             try {
                 const result = await requestBackgroundTweetTranslation({ url: tweetUrl, tweetId });
                 if (result.translatedText) {
-                    const nativeLike = buildNativeLikeTweetTranslationHtml(result.translatedText, target.textEl);
-                    translatedText = nativeLike.text || result.translatedText || "";
-                    translatedHtml = nativeLike.html || "";
+                    translatedText = result.translatedText || "";
                 }
             } catch (error) {
                 console.warn("[x2md] 推文翻译失败，回退普通文本翻译：", error);
@@ -1318,10 +1246,14 @@
         }
 
         if (!translatedText) return false;
+        const nativeLike = buildNativeLikeTweetTranslationHtml(translatedText, target.textEl);
+        translatedText = nativeLike.text || translatedText;
+        translatedHtml = nativeLike.html || "";
 
         const override = {
             type: options.overrideType || "tweet",
             text: translatedText,
+            markdown: nativeLike.markdown || "",
             source: translatedHtml ? "twitter_native" : "",
         };
         const rendered = translatedHtml
@@ -1457,13 +1389,9 @@
                 const embeddedRendered = await translateEmbeddedTargetsInPlace(targetScope);
                 return embeddedRendered ? "translated" : "cached";
             }
-            if (currentTarget?.kind === "tweet" && findNativeTwitterTranslationControl(targetScope, "original")) {
-                markNativeTwitterTranslation(targetScope);
-                const embeddedRendered = await translateEmbeddedTargetsInPlace(targetScope);
-                return embeddedRendered ? "translated" : "cached";
-            }
         }
 
+        await restoreNativeTwitterOriginalForTranslation(targetScope);
         await expandCollapsedTweetText(targetScope);
         const target = getTranslationTarget(targetScope);
         if (!target?.text) return "missing";
@@ -1481,13 +1409,6 @@
             return (mainRendered || embeddedRendered) ? "translated" : "missing";
         }
 
-        const nativeState = await showNativeTwitterTranslation(targetScope);
-        if (nativeState) {
-            const embeddedRendered = await translateEmbeddedTargetsInPlace(targetScope);
-            clearInlineTranslationStatus(targetScope);
-            return (nativeState === "cached" && !embeddedRendered) ? "cached" : "translated";
-        }
-
         const { url: tweetUrl } = findTweetUrl(targetScope);
         let fallbackUrl = "";
         if (location.pathname.includes("/status/")) {
@@ -1503,9 +1424,7 @@
             try {
                 const result = await requestBackgroundTweetTranslation({ url: resolvedTweetUrl, tweetId });
                 if (result.translatedText) {
-                    const nativeLike = buildNativeLikeTweetTranslationHtml(result.translatedText, target.textEl);
-                    translatedText = nativeLike.text || result.translatedText || "";
-                    translatedHtml = nativeLike.html || "";
+                    translatedText = result.translatedText || "";
                     translationSource = "twitter_native_api";
                 }
             } catch (error) {
@@ -1521,11 +1440,19 @@
             translatedText = result.translatedText || "";
         }
         if (!translatedText) return "missing";
+        const nativeLike = buildNativeLikeTweetTranslationHtml(translatedText, target.textEl);
+        translatedText = nativeLike.text || translatedText;
+        translatedHtml = nativeLike.html || "";
         const rendered = renderInlineTranslation(targetScope, {
             text: translatedText,
             html: translatedHtml,
             source: translationSource,
-            override: { type: "tweet", text: translatedText, source: translationSource ? "twitter_native" : "" },
+            override: {
+                type: "tweet",
+                text: translatedText,
+                markdown: nativeLike.markdown || "",
+                source: translationSource ? "twitter_native" : "",
+            },
         });
         const embeddedRendered = await translateEmbeddedTargetsInPlace(targetScope);
         clearInlineTranslationStatus(targetScope);
@@ -1694,15 +1621,6 @@
             }
             const fixedActions = btn.closest(`.${X_INLINE_ACTIONS_CONTAINER_CLASS}`);
             const article = fixedActions ? document : (btn.closest("article, [role='article']") || document);
-            const isArticleScope = isTwitterArticleTranslationScope(article);
-            if (!isArticleScope) {
-                const nativeState = await toggleNativeTwitterTranslation(article);
-                if (nativeState) {
-                    showToast(nativeState === "original" ? "已显示原文" : "翻译已显示", "success", 1600);
-                    return;
-                }
-            }
-
             const existingState = toggleExistingInlineTranslation(article);
             if (existingState) {
                 showToast(existingState === "original" ? "已显示原文" : "翻译已显示", "success", 1600);

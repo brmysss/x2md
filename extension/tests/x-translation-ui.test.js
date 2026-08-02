@@ -96,8 +96,6 @@ test("article translation scopes its title, uses Draft blocks, and bypasses nati
     const source = fs.readFileSync(path.join(__dirname, "..", "x-translation-ui.js"), "utf8");
     assert.match(source, /twitterArticleReadView[^\n]+article\[data-testid=\"tweet\"\]/);
     assert.match(source, /querySelectorAll\?\.\('\[data-block=\"true\"\]'\)/);
-    assert.match(source, /const isArticleScope = isTwitterArticleTranslationScope\(article\)/);
-    assert.match(source, /if \(!isArticleScope\) \{\s*const nativeState = await toggleNativeTwitterTranslation\(article\)/);
     assert.match(source, /translateArticleTextSegments[\s\S]+bodyBlocks\.forEach/);
     assert.match(source, /requestBackgroundTextTranslation[\s\S]{0,1800}replaceElementTextWithTranslation\(bodyBlocks\[paragraphIndex\], translatedText/);
     assert.doesNotMatch(source, /replaceElementTextWithTranslation\(block, translated\.translatedParagraphs\[index\]/);
@@ -105,6 +103,15 @@ test("article translation scopes its title, uses Draft blocks, and bypasses nati
     assert.doesNotMatch(source, /isTwitterArticleTranslationScope\(document\)[\s\S]{0,250}document\.querySelector\(X_GROK_BUTTON_SELECTORS\)/);
     assert.match(source, /excludedAncestor && bodyEl\.contains\(excludedAncestor\)/);
     assert.match(source, /if \(target\.kind === "article"\) \{\s*const mainRendered = await translateArticleInPlace\(target\);\s*return mainRendered \? "translated" : "missing";/);
+});
+
+test("tweet translation reconstructs links instead of delegating rendering to X", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "x-translation-ui.js"), "utf8");
+    assert.doesNotMatch(source, /const nativeState = await toggleNativeTwitterTranslation\(article\)/);
+    assert.doesNotMatch(source, /const nativeState = await showNativeTwitterTranslation\(targetScope\)/);
+    assert.doesNotMatch(source, /markNativeTwitterTranslation\(targetScope\)/);
+    assert.match(source, /await restoreNativeTwitterOriginalForTranslation\(targetScope\);/);
+    assert.match(source, /buildNativeLikeTweetTranslationHtml\(translatedText, target\.textEl\)/);
 });
 
 test("article toolbar buttons mount beside native controls without a floating fallback", () => {

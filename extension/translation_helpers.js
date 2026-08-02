@@ -12,6 +12,111 @@
             .trim();
     }
 
+    function escapeRegExp(text) {
+        return String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function normalizeInlineLinkText(text) {
+        return String(text || "").replace(/\s+/g, "");
+    }
+
+    function makeLooseInlineTextPattern(text) {
+        const compact = normalizeInlineLinkText(text);
+        if (!compact) return "";
+        return compact
+            .split("")
+            .map((char) => escapeRegExp(char))
+            .join("\\s*");
+    }
+
+    function normalizeHttpLinkTarget(value) {
+        try {
+            const parsed = new URL(String(value || ""));
+            if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+            return parsed.href.replace(/\(/g, "%28").replace(/\)/g, "%29");
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function restoreTranslatedLinks(text, descriptors = []) {
+        let tokenizedText = String(text || "").replace(/\r\n/g, "\n").trim();
+        const tokens = [];
+        const tokenCorpus = [tokenizedText, ...descriptors.flatMap((descriptor) => [
+            descriptor.html,
+            descriptor.displayText,
+            descriptor.href,
+            ...(descriptor.candidates || []),
+        ])].join("\n");
+        let tokenPrefix = "\uE000X2MD_LINK\uE001";
+        while (tokenCorpus.includes(tokenPrefix)) tokenPrefix += "\uE002";
+
+        for (const descriptor of descriptors) {
+            let matched = false;
+            for (const candidate of descriptor.candidates || []) {
+                const strippedCandidate = String(candidate).replace(/(?:\.\.\.|…)+$/g, "");
+                const variants = descriptor.type === "url"
+                    ? [{ text: candidate, truncated: false }, { text: strippedCandidate, truncated: strippedCandidate !== candidate }]
+                    : [{ text: candidate, truncated: false }];
+                for (const { text: variant, truncated } of variants) {
+                    const loosePattern = descriptor.type === "mention" || descriptor.type === "url";
+                    let pattern = loosePattern ? makeLooseInlineTextPattern(variant) : escapeRegExp(variant);
+                    if (!pattern) continue;
+                    if (descriptor.type === "url" && !/^https?:\/\//i.test(variant)) {
+                        pattern = `(?:https?:\\/\\/\\s*)?${pattern}`;
+                    }
+                    if (descriptor.type === "url") {
+                        if (truncated) pattern += "(?:\\.\\.\\.|…)?";
+                        pattern = `(^|[^A-Za-z0-9@._/-])(${pattern})(?![-A-Za-z0-9._/…])`;
+                    }
+                    const token = `${tokenPrefix}${tokens.length}\uE003`;
+                    const matcher = new RegExp(pattern, loosePattern ? "i" : "");
+                    if (!matcher.test(tokenizedText)) continue;
+                    tokenizedText = tokenizedText.replace(matcher, descriptor.type === "url" ? `$1${token}` : token);
+                    tokens.push({
+                        token,
+                        html: descriptor.html,
+                        text: descriptor.displayText,
+                        href: descriptor.href,
+                    });
+                    matched = true;
+                    break;
+                }
+                if (matched) break;
+            }
+            if (!matched && descriptor.type === "url") {
+                const token = `${tokenPrefix}${tokens.length}\uE003`;
+                const separator = tokenizedText && !/\s$/.test(tokenizedText) ? " " : "";
+                tokenizedText += `${separator}${token}`;
+                tokens.push({
+                    token,
+                    html: descriptor.html,
+                    text: descriptor.displayText,
+                    href: descriptor.href,
+                });
+            }
+        }
+
+        if (descriptors.some((descriptor) => descriptor.type === "url")) {
+            tokenizedText = tokenizedText
+                .replace(/(^|[^A-Za-z0-9.-])(?:https?:\/\/\s*)?t\.co\/[A-Za-z0-9_-]+/gi, "$1")
+                .replace(/[ \t]{2,}/g, " ");
+        }
+
+        let html = escapeHtml(tokenizedText).replace(/\n/g, "<br>");
+        for (const item of tokens) html = html.split(item.token).join(item.html);
+        let restoredText = tokenizedText;
+        let markdown = tokenizedText;
+        for (const item of tokens) {
+            restoredText = restoredText.split(item.token).join(item.text || "");
+            const label = String(item.text || "").replace(/([\\\]])/g, "\\$1");
+            const safeHref = normalizeHttpLinkTarget(item.href);
+            const markdownLink = safeHref ? `[${label}](${safeHref})` : item.text || "";
+            markdown = markdown.split(item.token).join(markdownLink);
+        }
+        return { text: restoredText.trim(), html, markdown: markdown.trim() };
+    }
+
     function isExpandableTweetTextControl(text) {
         const value = normalizeSpaces(text).replace(/\s+/g, " ").toLowerCase();
         if (!value) return false;
@@ -263,7 +368,7 @@
             return result;
         }
 
-        const translatedText = normalizeSpaces(override.text || override.article_content || "");
+        const translatedText = normalizeSpaces(override.markdown || override.text || override.article_content || "");
         if (translatedText) result.text = translatedText;
         return result;
     }
@@ -281,7 +386,10 @@
         cleanupTwitterDisplayUrlLineBreaks,
         isExpandableTweetTextControl,
         isProbablySimplifiedChinese,
+        makeLooseInlineTextPattern,
+        normalizeInlineLinkText,
         normalizeSpaces,
+        restoreTranslatedLinks,
         stripXArticleLinksFromText,
     };
 
