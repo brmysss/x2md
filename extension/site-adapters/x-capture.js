@@ -133,6 +133,15 @@ function extractImages(container) {
 // 推文 URL 提取（关键：从书签按钮找到推文链接）
 // ─────────────────────────────────────────────
 function findTweetUrl(btn) {
+    const currentPath = activeLocation.pathname.match(/^(\/[^/]+\/status\/\d+)/)?.[1] || "";
+    const currentArticle = currentPath
+        ? [...activeDocument.querySelectorAll("article, [role='article']")].find((article) =>
+            [...article.querySelectorAll('a[href*="/status/"]')].some((link) => {
+                const href = link.getAttribute("href") || "";
+                return href === currentPath || href.startsWith(`${currentPath}/`) || href.startsWith(`${currentPath}?`);
+            })
+        ) || null
+        : null;
     // 向上找包含 article 的容器
     let el = btn;
     let depth = 0;
@@ -149,23 +158,20 @@ function findTweetUrl(btn) {
     // X may replace the clicked bookmark button before the delayed capture runs.
     // On a status detail page, recover the matching article instead of falling
     // back to the first status link in the document (often the thread root).
-    if (!articleEl && activeLocation.pathname.includes("/status/")) {
-        const currentPath = activeLocation.pathname.match(/^(\/[^/]+\/status\/\d+)/)?.[1] || "";
-        if (currentPath) {
-            articleEl = [...activeDocument.querySelectorAll("article, [role='article']")].find((article) =>
-                [...article.querySelectorAll('a[href*="/status/"]')].some((link) => {
-                    const href = link.getAttribute("href") || "";
-                    return href === currentPath || href.startsWith(`${currentPath}/`) || href.startsWith(`${currentPath}?`);
-                })
-            ) || null;
-        }
+    if (!articleEl && currentPath) {
+        articleEl = currentArticle;
     }
 
     const ctx = articleEl || activeDocument;
+    if (articleEl && articleEl === currentArticle) {
+        return { url: activeLocation.origin + currentPath, article: articleEl };
+    }
 
     // 从 article 内找 status URL
-    const statusLinks = ctx.querySelectorAll('a[href*="/status/"]');
+    const statusLinks = [...ctx.querySelectorAll('a[href*="/status/"]')];
+    if (currentPath && articleEl && articleEl !== currentArticle) statusLinks.reverse();
     for (const link of statusLinks) {
+        if (link.closest?.('[data-testid="simpleTweet"]')) continue;
         const href = link.getAttribute("href");
         if (href && /\/[^/]+\/status\/\d+/.test(href)) {
             // 只保留 /user/status/id 部分，去掉 /analytics 等后缀
@@ -178,10 +184,8 @@ function findTweetUrl(btn) {
     }
 
     // 详情页：从当前 URL 只取 /user/status/id 部分
-    if (activeLocation.pathname.includes("/status/")) {
-        const m = activeLocation.pathname.match(/^(\/[^/]+\/status\/\d+)/);
-        const cleanPath = m ? m[1] : activeLocation.pathname;
-        return { url: activeLocation.origin + cleanPath, article: articleEl };
+    if (currentPath) {
+        return { url: activeLocation.origin + currentPath, article: articleEl };
     }
 
     return { url: "", article: articleEl };

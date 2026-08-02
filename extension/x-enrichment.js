@@ -441,15 +441,29 @@ async function fetchViaGraphQL(tweetId, options = {}) {
             if (authorRestId && allTweets.length > 0) {
                 const sameAuthorTweets = allTweets.filter((result) =>
                     result.core?.user_results?.result?.rest_id === authorRestId &&
-                    BigInt(result.legacy?.id_str || 0) > BigInt(tweetId)
+                    /^\d+$/.test(result.legacy?.id_str || "")
                 );
-                sameAuthorTweets.sort((left, right) => BigInt(left.legacy?.id_str || 0) < BigInt(right.legacy?.id_str || 0) ? -1 : 1);
+                sameAuthorTweets.sort((left, right) => {
+                    const leftId = BigInt(left.legacy.id_str);
+                    const rightId = BigInt(right.legacy.id_str);
+                    return leftId === rightId ? 0 : (leftId < rightId ? -1 : 1);
+                });
 
-                for (const threadTweet of sameAuthorTweets) {
+                let parentId = tweetId;
+                const visitedIds = new Set([tweetId]);
+                while (true) {
+                    const threadTweet = sameAuthorTweets.find((result) =>
+                        result.legacy?.in_reply_to_status_id_str === parentId &&
+                        !visitedIds.has(result.legacy.id_str)
+                    );
+                    if (!threadTweet) break;
+                    visitedIds.add(threadTweet.legacy.id_str);
                     const parsed = parseLegacyTweet(threadTweet, threadTweet.core?.user_results?.result?.legacy, { stripLeadingReplyMentions: true });
                     if (parsed && (parsed.text || parsed.images.length || parsed.videos.length)) {
                         threadParsed.push(parsed);
                     }
+                    parentId = threadTweet.legacy?.id_str || "";
+                    if (!parentId) break;
                 }
             }
 
@@ -1091,7 +1105,7 @@ async function enrichCaptureData(input) {
             author: apiResult.author || tweetData.author,
             handle: apiResult.handle || tweetData.handle,
             published: apiResult.published || tweetData.published,
-            thread_tweets: apiResult.thread_tweets?.length ? apiResult.thread_tweets : (tweetData.thread_tweets || []),
+            thread_tweets: Array.isArray(apiResult.thread_tweets) ? apiResult.thread_tweets : (tweetData.thread_tweets || []),
             quote_tweet: apiResult.quote_tweet || tweetData.quote_tweet || null,
             x_article_api: apiResult.x_article_api || tweetData.x_article_api || null,
             poll_data: apiResult.poll_data || tweetData.poll_data || null,

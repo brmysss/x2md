@@ -135,6 +135,75 @@ test("capture recovers the current status article after X replaces the clicked b
     assert.equal(result.content.text, "the requested status text");
 });
 
+test("capture prefers the current status over a nested quote link", () => {
+    global.getTwitterArticleCardTranslationTarget = () => null;
+    const quotedStatus = node({ attrs: { href: "/alice/status/100", tagName: "A" } });
+    quotedStatus.closest = (selector) => selector === '[data-testid="simpleTweet"]' ? {} : null;
+    const currentStatus = node({ attrs: { href: "/alice/status/200", tagName: "A" } });
+    const article = node({ attrs: { tagName: "ARTICLE" }, selectors: {
+        'a[href*="/status/"]': [quotedStatus, currentStatus],
+        '[data-testid="tweetText"]': [node({ text: "the requested status text" })],
+        '[data-testid="User-Name"]': [], 'div[lang]': [], 'div[dir="auto"]': [], time: [],
+        '[data-testid="tweetPhoto"] img': [],
+        '[data-testid="videoComponent"] video, [data-testid="videoPlayer"] video': [],
+        '[data-testid*="card"] img, [data-testid*="Card"] img': [], img: [],
+        '[data-testid="simpleTweet"]': [], 'a[href*="/article/"]': [], a: [],
+    } });
+    const document = node({ selectors: {
+        'article, [role="article"]': [article],
+        "article, [role='article']": [article],
+        '[role="dialog"], [aria-modal="true"], div': [],
+    } });
+    document.documentElement = { innerHTML: "" };
+
+    const result = capture({
+        document,
+        location: { origin: "https://x.com", href: "https://x.com/alice/status/200", pathname: "/alice/status/200" },
+        trigger: article,
+        capturedAt: "2026-07-11T00:00:00.000Z",
+        graphqlOperationIds: {},
+    });
+
+    assert.equal(result.source.url, "https://x.com/alice/status/200");
+    assert.equal(result.content.text, "the requested status text");
+});
+
+test("capture keeps a clicked reply article on a status detail page", () => {
+    global.getTwitterArticleCardTranslationTarget = () => null;
+    const currentStatus = node({ attrs: { href: "/alice/status/200", tagName: "A" } });
+    const nestedCurrentStatus = node({ attrs: { href: "/alice/status/200", tagName: "A" } });
+    const replyStatus = node({ attrs: { href: "/bob/status/300", tagName: "A" } });
+    const currentArticle = node({ attrs: { tagName: "ARTICLE" }, selectors: {
+        'a[href*="/status/"]': [currentStatus],
+    } });
+    const replyArticle = node({ attrs: { tagName: "ARTICLE" }, selectors: {
+        'a[href*="/status/"]': [nestedCurrentStatus, replyStatus],
+        '[data-testid="tweetText"]': [node({ text: "clicked reply" })],
+        '[data-testid="User-Name"]': [], 'div[lang]': [], 'div[dir="auto"]': [], time: [],
+        '[data-testid="tweetPhoto"] img': [],
+        '[data-testid="videoComponent"] video, [data-testid="videoPlayer"] video': [],
+        '[data-testid*="card"] img, [data-testid*="Card"] img': [], img: [],
+        '[data-testid="simpleTweet"]': [], 'a[href*="/article/"]': [], a: [],
+    } });
+    const document = node({ selectors: {
+        'article, [role="article"]': [currentArticle, replyArticle],
+        "article, [role='article']": [currentArticle, replyArticle],
+        '[role="dialog"], [aria-modal="true"], div': [],
+    } });
+    document.documentElement = { innerHTML: "" };
+
+    const result = capture({
+        document,
+        location: { origin: "https://x.com", href: "https://x.com/alice/status/200", pathname: "/alice/status/200" },
+        trigger: replyArticle,
+        capturedAt: "2026-07-11T00:00:00.000Z",
+        graphqlOperationIds: {},
+    });
+
+    assert.equal(result.source.url, "https://x.com/bob/status/300");
+    assert.equal(result.content.text, "clicked reply");
+});
+
 test("article capture does not depend on private translation UI helpers", () => {
     delete global.getTwitterArticleBodyContainer;
     global.extractArticleMarkdown = () => "article body";

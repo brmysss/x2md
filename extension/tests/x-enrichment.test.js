@@ -33,6 +33,53 @@ test("tweet mentions keep their X profile links in Markdown", () => {
     );
 });
 
+test("tweet enrichment keeps only same-author reply-chain continuations", async () => {
+    const originalChrome = global.chrome;
+    const originalFetch = global.fetch;
+    const author = { rest_id: "author-1", legacy: { name: "Alice", screen_name: "alice" } };
+    const tweet = (id, text, parentId = "") => ({
+        rest_id: id,
+        legacy: { id_str: id, full_text: text, entities: {}, in_reply_to_status_id_str: parentId || undefined },
+        core: { user_results: { result: author } },
+    });
+    const main = tweet("200", "main");
+    const unrelatedReply = tweet("201", "replying elsewhere", "999");
+    const continuation = tweet("202", "thread continuation", "200");
+    const secondContinuation = tweet("203", "second continuation", "202");
+    const cyclicDuplicate = tweet("200", "cyclic duplicate", "203");
+    const malformedId = tweet("not-a-number", "malformed", "203");
+    const entries = [main, unrelatedReply, secondContinuation, cyclicDuplicate, malformedId, continuation].map((result) => ({
+        entryId: `tweet-${result.rest_id}`,
+        content: { itemContent: { tweet_results: { result } } },
+    }));
+
+    global.chrome = {
+        cookies: { getAll: async () => [{ value: "csrf" }] },
+        storage: { local: { get: (_key, callback) => callback({}), set: (_value, callback) => callback?.() } },
+        runtime: { lastError: null },
+    };
+    global.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+            data: { threaded_conversation_with_injections_v2: { instructions: [{ type: "TimelineAddEntries", entries }] } },
+        }),
+    });
+
+    try {
+        const result = await enrich("tweet", {
+            url: "https://x.com/alice/status/200",
+            text: "dom",
+            images: [],
+            graphql_operation_ids: { TweetDetail: ["test-operation"] },
+        });
+        assert.deepEqual(result.thread_tweets.map((item) => item.text), ["thread continuation", "second continuation"]);
+    } finally {
+        global.chrome = originalChrome;
+        global.fetch = originalFetch;
+    }
+});
+
 test("tweet enrichment uses GraphQL before every fallback", async () => {
     const calls = [];
     const result = await orchestrateTweetFallback({ url: "https://x.com/u/status/42", text: "dom", images: ["dom"] }, {
@@ -44,6 +91,20 @@ test("tweet enrichment uses GraphQL before every fallback", async () => {
     assert.equal(result.data.text, "api");
     assert.deepEqual(result.data.images, ["api", "dom"]);
     assert.deepEqual(result.data.poll_data, { options: [] });
+});
+
+test("an empty GraphQL reply chain clears an unreliable DOM thread", async () => {
+    const result = await orchestrateTweetFallback({
+        url: "https://x.com/u/status/42",
+        text: "dom",
+        images: [],
+        thread_tweets: [{ text: "unrelated same-author reply" }],
+    }, {
+        graphql: async () => ({ text: "api", images: [], thread_tweets: [] }),
+        oembed: async () => null,
+    });
+
+    assert.deepEqual(result.data.thread_tweets, []);
 });
 
 test("tweet enrichment falls back GraphQL -> oEmbed -> DOM", async () => {
