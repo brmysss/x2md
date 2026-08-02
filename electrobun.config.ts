@@ -20,6 +20,7 @@ export default {
       },
     },
     copy: {
+      "extension": "extension",
       "app/ui/settings/index.html": "views/settings/index.html",
       "app/ui/settings/styles.css": "views/settings/styles.css",
       "assets/AppIcon.iconset/icon_128x128.png": "views/assets/icon.png",
