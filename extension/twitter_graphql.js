@@ -12,6 +12,13 @@
 
     const GRAPHQL_OPS_STORAGE_KEY = "graphql_ops_v1";
 
+    function decodeGraphQLText(value) {
+        if (typeof globalScope.decodeXHtmlEntities === "function") {
+            return globalScope.decodeXHtmlEntities(value);
+        }
+        return String(value || "");
+    }
+
     function normalizeOperationIdList(ids) {
         const source = Array.isArray(ids) ? ids : [];
         return Array.from(new Set(source.filter((id) => typeof id === "string" && id.trim() !== "")));
@@ -123,7 +130,7 @@
     function firstCardValue(map, keys) {
         for (const key of keys) {
             const value = map[key];
-            if (value !== undefined && value !== null && String(value).trim() !== "") return String(value).trim();
+            if (value !== undefined && value !== null && String(value).trim() !== "") return decodeGraphQLText(value).trim();
         }
         return "";
     }
@@ -168,7 +175,7 @@
 
     function normalizeCommunityNote(note) {
         if (!note || typeof note !== "object") return null;
-        const text = String(
+        const text = decodeGraphQLText(
             note.text ??
             note.summary ??
             note.body ??
@@ -177,7 +184,7 @@
             ""
         ).trim();
         if (!text) return null;
-        const source = String(
+        const source = decodeGraphQLText(
             note.source_url ??
             note.source ??
             note.url ??

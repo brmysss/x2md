@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
+require("../media_helpers.js");
 const {
     TWEET_DETAIL_OPERATION_IDS,
     TWEET_RESULT_OPERATION_IDS,
@@ -230,6 +231,46 @@ test("extractPollFromTweetResult reads poll card binding values", () => {
         ],
         total_votes: 286,
         end: "2026-07-10 12:00 UTC",
+    });
+});
+
+test("GraphQL metadata decodes HTML entities before Markdown rendering", () => {
+    const poll = extractPollFromTweetResult({
+        card: {
+            legacy: {
+                binding_values: [
+                    { key: "choice1_label", value: { string_value: "A &amp; B" } },
+                    { key: "choice2_label", value: { string_value: "C &gt; D" } },
+                ],
+            },
+        },
+    });
+    const notes = extractCommunityNotesFromTweetResult({
+        community_note: {
+            text: "来源 &amp; 说明",
+            source_url: "https://example.com/?a=1&amp;b=2",
+        },
+    });
+    const card = extractLinkCardFromTweetResult({
+        card: {
+            legacy: {
+                binding_values: [
+                    { key: "title", value: { string_value: "A &amp; B" } },
+                    { key: "description", value: { string_value: "C &gt; D" } },
+                    { key: "card_url", value: { string_value: "https://example.com/?a=1&amp;b=2" } },
+                ],
+            },
+        },
+    });
+
+    assert.deepEqual(poll.options.map((option) => option.label), ["A & B", "C > D"]);
+    assert.deepEqual(notes, [{ text: "来源 & 说明", source: "https://example.com/?a=1&b=2" }]);
+    assert.deepEqual(card, {
+        title: "A & B",
+        description: "C > D",
+        domain: "example.com",
+        url: "https://example.com/?a=1&b=2",
+        image: undefined,
     });
 });
 
