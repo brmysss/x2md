@@ -452,7 +452,7 @@ test("打包 App 内扩展目录解析到 Contents/Resources/extension", () => {
 
 test("Electrobun 首次启动解包内容包含扩展目录", () => {
   const config = readFileSync(join(import.meta.dirname, "..", "..", "electrobun.config.ts"), "utf8");
-  assert.match(config, /["']extension["']:\s*["']extension["']/);
+  assert.match(config, /["']extension["']:\s*["']\.\.\/extension["']/);
 });
 
 test("设置页 URL 固定使用 9527", () => {
