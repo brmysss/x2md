@@ -549,3 +549,15 @@ test("X article encodes non-ASCII URL whitespace as UTF-8 bytes", () => {
 
   assert.equal(article.content, "[example.com/a%E3%80%80b](https://example.com/a%E3%80%80b)");
 });
+
+test("X article encodes HTML delimiters and controls inside link URLs", () => {
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "HTML-safe link",
+    content_state: {
+      blocks: [{ key: "a", type: "unstyled", text: "target", entityRanges: [{ offset: 0, length: 6, key: 0 }] }],
+      entityMap: [{ key: "0", value: { type: "LINK", data: { url: "https://example.com/<tag>\u0001`x\"" } } }],
+    },
+  } } } });
+
+  assert.equal(article.content, "[example.com/%3Ctag%3E%01%60x%22](https://example.com/%3Ctag%3E%01%60x%22)");
+});

@@ -187,7 +187,7 @@
         if (!/(LINK|URL)/.test(type)) return "";
         const url = decodeXHtmlEntities(readArticleUrlValue(entity?.data || entity));
         if (!/^https?:\/\//i.test(url)) return "";
-        return url.replace(/[()[\]\\\s]/gu, (character) => {
+        return url.replace(/[\x00-\x20\x7F()[\]\\<>`"\s]/gu, (character) => {
             const encoded = encodeURIComponent(character);
             return encoded === character
                 ? `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`
