@@ -386,3 +386,57 @@ test("X article links decode once without exposing Markdown delimiters", () => {
 
   assert.match(article.content, /\[example\.com\/a%29%5Bbad%5D\?x=1&y=2\]\(https:\/\/example\.com\/a%29%5Bbad%5D\?x=1&y=2\)/);
 });
+
+test("X article links do not shift later Draft style ranges", () => {
+  const article = extractArticleMarkdownFromGraphQL({
+    article: {
+      article_results: {
+        result: {
+          title: "Linked styles",
+          content_state: {
+            blocks: [{
+              key: "a",
+              type: "unstyled",
+              text: "link &amp; bold",
+              entityRanges: [{ offset: 0, length: 4, key: 0 }],
+              inlineStyleRanges: [{ offset: 11, length: 4, style: "BOLD" }],
+            }],
+            entityMap: [{
+              key: "0",
+              value: { type: "LINK", data: { url: "https://example.com" } },
+            }],
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(article.content, "[example.com](https://example.com) & **bold**");
+});
+
+test("X article links keep overlapping bold styles", () => {
+  const article = extractArticleMarkdownFromGraphQL({
+    article: {
+      article_results: {
+        result: {
+          title: "Bold link",
+          content_state: {
+            blocks: [{
+              key: "a",
+              type: "unstyled",
+              text: "link",
+              entityRanges: [{ offset: 0, length: 4, key: 0 }],
+              inlineStyleRanges: [{ offset: 0, length: 4, style: "BOLD" }],
+            }],
+            entityMap: [{
+              key: "0",
+              value: { type: "LINK", data: { url: "https://example.com" } },
+            }],
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(article.content, "**[example.com](https://example.com)**");
+});

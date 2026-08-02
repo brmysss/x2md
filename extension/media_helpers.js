@@ -169,22 +169,6 @@
         return leftStart < rightEnd && rightStart < leftEnd;
     }
 
-    function applyArticleInlineStyles(text, inlineStyleRanges, excludedRanges = []) {
-        let result = String(text || "");
-        const ranges = Array.isArray(inlineStyleRanges) ? inlineStyleRanges : [];
-        for (const range of [...ranges].sort((left, right) => (right.offset || 0) - (left.offset || 0))) {
-            if (excludedRanges.some((excluded) => rangesOverlap(range, excluded))) continue;
-            const offset = Number(range?.offset || 0);
-            const length = Number(range?.length || 0);
-            if (!Number.isFinite(offset) || !Number.isFinite(length) || length <= 0) continue;
-            const style = String(range?.style || "").toUpperCase();
-            const marker = style.startsWith("BOLD") ? "**" : (style.startsWith("ITALIC") ? "*" : "");
-            if (!marker) continue;
-            result = result.slice(0, offset) + marker + result.slice(offset, offset + length) + marker + result.slice(offset + length);
-        }
-        return result;
-    }
-
     function readArticleUrlValue(value, depth = 0) {
         if (!value || depth > 3) return "";
         if (typeof value === "string") return value.trim();
@@ -208,25 +192,43 @@
             .replace(/[()[\]\\\s]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
     }
 
-    function applyArticleInlineEntities(text, entityRanges, entities, inlineStyleRanges = [], links = [], tokenPrefix = "\uE000X2MD_LINK_") {
-        let result = String(text || "");
+    function applyArticleInlineFormatting(text, entityRanges, entities, inlineStyleRanges = [], links = [], tokenPrefix = "\uE000X2MD_LINK_") {
+        const source = String(text || "");
         const ranges = Array.isArray(entityRanges) ? entityRanges : [];
-        for (const range of [...ranges].sort((left, right) => (right.offset || 0) - (left.offset || 0))) {
+        const styles = Array.isArray(inlineStyleRanges) ? inlineStyleRanges : [];
+        const operations = [];
+        for (const range of ranges) {
             const offset = Number(range?.offset || 0);
             const length = Number(range?.length || 0);
             if (!Number.isFinite(offset) || !Number.isFinite(length) || length <= 0) continue;
-            if (offset < 0 || offset + length > result.length) continue;
+            if (offset < 0 || offset + length > source.length) continue;
 
             const url = readArticleLinkUrl(entities.get(String(range?.key)));
             if (!url) continue;
-            const label = result.slice(offset, offset + length);
+            const label = source.slice(offset, offset + length);
             if (!label.trim() || label.includes("](") || label.includes("![](")) continue;
             const fullLabel = url.replace(/^https?:\/\//i, "");
-            const isBold = inlineStyleRanges.some((style) => String(style?.style || "").toUpperCase().startsWith("BOLD") && rangesOverlap(range, style));
+            const isBold = styles.some((style) => String(style?.style || "").toUpperCase().startsWith("BOLD") && rangesOverlap(range, style));
             const link = `[${fullLabel}](${url})`;
             const placeholder = `${tokenPrefix}${links.length}\uE001`;
             links.push(isBold ? `**${link}**` : link);
-            result = `${result.slice(0, offset)}${placeholder}${result.slice(offset + length)}`;
+            operations.push({ offset, length, replacement: placeholder });
+        }
+        for (const range of styles) {
+            if (ranges.some((excluded) => rangesOverlap(range, excluded))) continue;
+            const offset = Number(range?.offset || 0);
+            const length = Number(range?.length || 0);
+            if (!Number.isFinite(offset) || !Number.isFinite(length) || length <= 0) continue;
+            if (offset < 0 || offset + length > source.length) continue;
+            const style = String(range?.style || "").toUpperCase();
+            const marker = style.startsWith("BOLD") ? "**" : (style.startsWith("ITALIC") ? "*" : "");
+            if (!marker) continue;
+            operations.push({ offset, length, replacement: `${marker}${source.slice(offset, offset + length)}${marker}` });
+        }
+
+        let result = source;
+        for (const operation of operations.sort((left, right) => right.offset - left.offset)) {
+            result = `${result.slice(0, operation.offset)}${operation.replacement}${result.slice(operation.offset + operation.length)}`;
         }
         return result;
     }
@@ -364,8 +366,7 @@
         const links = [];
         let tokenPrefix = "\uE000X2MD_LINK_";
         while (rawText.includes(tokenPrefix)) tokenPrefix += "_";
-        const inlineText = applyArticleInlineEntities(rawText, block?.entityRanges, entities, block?.inlineStyleRanges, links, tokenPrefix);
-        const styledText = applyArticleInlineStyles(inlineText, block?.inlineStyleRanges, block?.entityRanges);
+        const styledText = applyArticleInlineFormatting(rawText, block?.entityRanges, entities, block?.inlineStyleRanges, links, tokenPrefix);
         const text = links
             .reduce((value, link, index) => value.replace(`${tokenPrefix}${index}\uE001`, link), decodeXHtmlEntities(styledText))
             .trim();
