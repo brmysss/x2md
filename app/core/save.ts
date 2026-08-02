@@ -14,6 +14,7 @@ import { logSaveMetrics } from "../main/logger.ts";
 import { StateStore } from "./state-store.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 export type SaveHistoryEntry = {
   id: string;
@@ -107,6 +108,11 @@ export async function savePayload(data: Record<string, any>, cfg: X2MDConfig | R
       const historyId = readSaveHistory(dir).find((item) => saved.includes(item.path))?.id;
       return finish({ success: true, outcome: "skipped", capture_key: key, saved, files: saved.map((path, index) => ({ path, ...(historyId && index === 0 ? { history_id: historyId } : {}) })), errors: [], warnings: [], media: { completed: 0, failed: 0, pending: 0 } });
     }
+    const intactFiles = existing && policy === "skip" ? (latest?.files || []).filter(existsSync) : [];
+    const intactDirectories = new Set(intactFiles.map((file) => resolve(dirname(file))));
+    const transactionSavePaths = policy === "skip"
+      ? savePaths.filter((savePath) => !intactDirectories.has(resolve(savePath)))
+      : savePaths;
     const { localized, videoPlan } = await timeSaveStage(metrics, "media", async () => {
       const localized = await localizeImages(data, cfg, savePaths);
       const videoPlan = await planVideoMedia(localized.data, cfg, markdownFilename(localized.data, cfg));
@@ -139,13 +145,14 @@ export async function savePayload(data: Record<string, any>, cfg: X2MDConfig | R
       outcome: (localized.failed + videoPlan.failed) ? "partial" : "saved",
     } : undefined;
     const { saved, errors, transactionId } = await timeSaveStage(metrics, "write", () => runSaveTransaction({
-      appDir: dir, savePaths, filename: safeFilename, content: safeContent, history,
-      saveIndex: { key, capture },
+      appDir: dir, savePaths: transactionSavePaths, filename: safeFilename, content: safeContent, history,
+      saveIndex: { key, capture, existingFiles: intactFiles },
     }));
-    const outcome = saved.length ? (errors.length ? "partial" : "saved") : "failed";
+    const allSaved = [...intactFiles, ...saved];
+    const outcome = allSaved.length ? (errors.length ? "partial" : "saved") : "failed";
     const failedMedia = localized.failed + videoPlan.failed;
-    const result = { success: saved.length > 0, outcome: failedMedia && saved.length ? "partial" : outcome, capture_key: key, saved, files: saved.map((path, index) => ({ path, ...(index === 0 ? { history_id: transactionId } : {}) })), errors, warnings: [...localized.warnings, ...videoPlan.warnings], media: { completed: localized.completed + videoPlan.completed, failed: failedMedia, pending: 0 } };
-    return finish(result, saved.length ? null : "WRITE_FAILED");
+    const result = { success: allSaved.length > 0, outcome: failedMedia && allSaved.length ? "partial" : outcome, capture_key: key, saved: allSaved, files: allSaved.map((path) => ({ path, ...(saved.includes(path) && saved[0] === path ? { history_id: transactionId } : {}) })), errors, warnings: [...localized.warnings, ...videoPlan.warnings], media: { completed: localized.completed + videoPlan.completed, failed: failedMedia, pending: 0 } };
+    return finish(result, allSaved.length ? null : "WRITE_FAILED");
   }).catch((error) => {
     finish({ success: false, outcome: "failed" }, String((error as any)?.code || "WRITE_FAILED"));
     throw error;

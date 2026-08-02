@@ -334,3 +334,55 @@ test("X article code blocks decode HTML entities exactly once", () => {
 
   assert.match(article.content, /```\n&gt;\n精度>情绪\n```/);
 });
+
+test("X article entity decoding preserves Draft style offsets", () => {
+  const article = extractArticleMarkdownFromGraphQL({
+    article: {
+      article_results: {
+        result: {
+          title: "Styled entities",
+          content_state: {
+            blocks: [{
+              key: "a",
+              type: "unstyled",
+              text: "A &amp; B link",
+              inlineStyleRanges: [{ offset: 10, length: 4, style: "BOLD" }],
+            }],
+            entityMap: [],
+          },
+        },
+      },
+    },
+  });
+
+  assert.match(article.content, /A & B \*\*link\*\*/);
+});
+
+test("X article links decode once without exposing Markdown delimiters", () => {
+  const article = extractArticleMarkdownFromGraphQL({
+    article: {
+      article_results: {
+        result: {
+          title: "Safe links",
+          content_state: {
+            blocks: [{
+              key: "a",
+              type: "unstyled",
+              text: "Visit target",
+              entityRanges: [{ offset: 6, length: 6, key: 0 }],
+            }],
+            entityMap: [{
+              key: "0",
+              value: {
+                type: "LINK",
+                data: { url: "https://example.com/a&#41;[bad]?x=1&amp;y=2" },
+              },
+            }],
+          },
+        },
+      },
+    },
+  });
+
+  assert.match(article.content, /\[example\.com\/a%29%5Bbad%5D\?x=1&y=2\]\(https:\/\/example\.com\/a%29%5Bbad%5D\?x=1&y=2\)/);
+});

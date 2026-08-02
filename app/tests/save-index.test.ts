@@ -47,6 +47,24 @@ test("a capture can be saved again after its indexed Markdown file is deleted", 
   assert.equal(existsSync(second.saved[0]), true);
 });
 
+test("skip restores only a missing target without duplicating intact targets", async () => {
+  const appDir = mkdtempSync(join(tmpdir(), "x2md-index-"));
+  const saveDirs = [join(appDir, "first"), join(appDir, "second")];
+  const cfg = normalizeConfig({ save_paths: saveDirs, enable_video_download: false });
+  const first = await savePayload(legacy("partial"), cfg, appDir, capture("partial"));
+  const intact = first.saved[0];
+  const missing = first.saved[1];
+  rmSync(missing);
+
+  const second = await savePayload(legacy("partial"), cfg, appDir, capture("partial"));
+
+  assert.equal(second.outcome, "saved");
+  assert.deepEqual(new Set(second.saved), new Set(first.saved));
+  assert.equal(existsSync(intact), true);
+  assert.equal(existsSync(missing), true);
+  assert.equal(existsSync(intact.replace(/\.md$/, "_2.md")), false);
+});
+
 test("20 different keys with the same title produce unique files", async () => {
   const { appDir, cfg } = setup();
   const results = await Promise.all(Array.from({ length: 20 }, (_, index) => savePayload(legacy(String(index + 10)), cfg, appDir, capture(String(index + 10)))));

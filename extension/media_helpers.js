@@ -203,10 +203,12 @@
         if (!/(LINK|URL)/.test(type)) return "";
         const url = decodeXHtmlEntities(readArticleUrlValue(entity?.data || entity));
         if (!/^https?:\/\//i.test(url)) return "";
-        return url.replace(/[\s)]+$/g, "");
+        return url
+            .replace(/[\s)]+$/g, "")
+            .replace(/[()[\]\\\s]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
     }
 
-    function applyArticleInlineEntities(text, entityRanges, entities, inlineStyleRanges = []) {
+    function applyArticleInlineEntities(text, entityRanges, entities, inlineStyleRanges = [], links = [], tokenPrefix = "\uE000X2MD_LINK_") {
         let result = String(text || "");
         const ranges = Array.isArray(entityRanges) ? entityRanges : [];
         for (const range of [...ranges].sort((left, right) => (right.offset || 0) - (left.offset || 0))) {
@@ -222,7 +224,9 @@
             const fullLabel = url.replace(/^https?:\/\//i, "");
             const isBold = inlineStyleRanges.some((style) => String(style?.style || "").toUpperCase().startsWith("BOLD") && rangesOverlap(range, style));
             const link = `[${fullLabel}](${url})`;
-            result = `${result.slice(0, offset)}${isBold ? `**${link}**` : link}${result.slice(offset + length)}`;
+            const placeholder = `${tokenPrefix}${links.length}\uE001`;
+            links.push(isBold ? `**${link}**` : link);
+            result = `${result.slice(0, offset)}${placeholder}${result.slice(offset + length)}`;
         }
         return result;
     }
@@ -356,9 +360,15 @@
             if (rendered) entityParts.push(rendered);
         }
 
-        const decodedText = decodeXHtmlEntities(block?.text || "");
-        const inlineText = applyArticleInlineEntities(decodedText, block?.entityRanges, entities, block?.inlineStyleRanges);
-        const text = applyArticleInlineStyles(inlineText, block?.inlineStyleRanges, block?.entityRanges).trim();
+        const rawText = String(block?.text || "");
+        const links = [];
+        let tokenPrefix = "\uE000X2MD_LINK_";
+        while (rawText.includes(tokenPrefix)) tokenPrefix += "_";
+        const inlineText = applyArticleInlineEntities(rawText, block?.entityRanges, entities, block?.inlineStyleRanges, links, tokenPrefix);
+        const styledText = applyArticleInlineStyles(inlineText, block?.inlineStyleRanges, block?.entityRanges);
+        const text = links
+            .reduce((value, link, index) => value.replace(`${tokenPrefix}${index}\uE001`, link), decodeXHtmlEntities(styledText))
+            .trim();
         if (isArticleCodeBlock(block)) {
             return formatArticleCodeFence(block?.text || "", readArticleCodeLanguage(block?.data || {}));
         }
