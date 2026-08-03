@@ -105,12 +105,13 @@ test("Tweet 译文保留真实换行并移除不安全 Markdown 链接目标", (
     prefer_translated_content: true,
     translation_override: {
       type: "tweet",
-      markdown: "说明：\n[运行](javascript:alert(1))",
+      markdown: "说明：\n[运\n行](javascript:alert%281%29 \"提示\")",
     },
   }, baseCfg);
 
-  assert.match(content, /说明：\n运行/);
+  assert.match(content, /说明：\n运\n行/);
   assert.doesNotMatch(content, /javascript:/);
+  assert.doesNotMatch(content, /\[运/);
 });
 
 

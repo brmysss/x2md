@@ -456,8 +456,27 @@
         return result;
     }
 
+    function extractTweetTextForLinkPlacement(root) {
+        let text = "";
+        const visit = (node) => {
+            if (!node) return;
+            if (node.nodeType === 3) {
+                text += node.nodeValue || node.textContent || "";
+                return;
+            }
+            if (String(node.tagName || "").toUpperCase() === "BR") {
+                text += "\n";
+                return;
+            }
+            for (const child of node.childNodes || []) visit(child);
+        };
+        visit(root);
+        return text.replace(/\r\n/g, "\n");
+    }
+
     const exported = {
         applyTranslationOverrideToData,
+        extractTweetTextForLinkPlacement,
         markdownToClipboardHtml,
         plainTextToClipboardHtml,
         inlineMarkdownToHtml,

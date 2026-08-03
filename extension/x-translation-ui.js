@@ -3,6 +3,7 @@
         ? require("./translation_helpers.js")
         : globalScope;
     const applyTranslationOverride = translationHelpers.applyTranslationOverrideToData;
+    const extractTweetTextForLinkPlacement = translationHelpers.extractTweetTextForLinkPlacement;
     const {
         escapeHtml,
         hasInlineMarkdownLinks,
@@ -760,7 +761,7 @@
 
     function buildOriginalTweetLinkDescriptors(tweetTextEl) {
         const descriptors = [];
-        const originalText = String(tweetTextEl?.textContent || tweetTextEl?.innerText || "").replace(/\r\n/g, "\n");
+        const originalText = extractTweetTextForLinkPlacement(tweetTextEl);
         const displaySearchOffsets = new Map();
         for (const anchor of tweetTextEl?.querySelectorAll?.("a[href]") || []) {
             const href = anchor.href || "";

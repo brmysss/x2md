@@ -114,7 +114,6 @@ test("tweet translation reconstructs links instead of delegating rendering to X"
     assert.doesNotMatch(source, /markNativeTwitterTranslation\(targetScope\)/);
     assert.match(source, /await restoreNativeTwitterOriginalForTranslation\(targetScope\);/);
     assert.match(source, /buildNativeLikeTweetTranslationHtml\(translatedText, target\.textEl\)/);
-    assert.match(source, /tweetTextEl\?\.textContent \|\| tweetTextEl\?\.innerText/);
 });
 
 test("article toolbar buttons mount beside native controls without a floating fallback", () => {

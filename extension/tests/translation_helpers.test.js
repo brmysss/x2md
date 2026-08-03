@@ -5,6 +5,7 @@ const {
     applyTranslationOverrideToData,
     buildArticleTranslationSource,
     cleanupTwitterDisplayUrlLineBreaks,
+    extractTweetTextForLinkPlacement,
     isExpandableTweetTextControl,
     isProbablySimplifiedChinese,
     restoreTranslatedLinks,
@@ -368,6 +369,25 @@ test("cleanupTwitterDisplayUrlLineBreaks preserves ordinary line breaks before b
         cleanupTwitterDisplayUrlLineBreaks("第一段。\nexample.com 是下一行。"),
         "第一段。\nexample.com 是下一行。",
     );
+});
+
+test("extractTweetTextForLinkPlacement preserves explicit BR boundaries without layout newlines", () => {
+    const textNode = (value) => ({ nodeType: 3, nodeValue: value, childNodes: [] });
+    const element = (tagName, childNodes = []) => ({ nodeType: 1, tagName, childNodes });
+    const root = element("DIV", [
+        textNode("Before"),
+        element("BR"),
+        element("A", [textNode("example.com")]),
+        element("BR"),
+        textNode("After"),
+    ]);
+
+    assert.equal(extractTweetTextForLinkPlacement(root), "Before\nexample.com\nAfter");
+    assert.equal(extractTweetTextForLinkPlacement(element("DIV", [
+        textNode("Before "),
+        element("SPAN", [element("A", [textNode("example.com")])]),
+        textNode(" After"),
+    ])), "Before example.com After");
 });
 
 test("stripXArticleLinksFromText removes feed article card links only", () => {
