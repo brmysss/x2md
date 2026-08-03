@@ -38,6 +38,19 @@ test("restoreTranslatedLinks preserves all original anchors and removes split sy
     });
 });
 
+test("restoreTranslatedLinks emits a single-line Markdown label for layout-wrapped X URLs", () => {
+    const result = restoreTranslatedLinks("查看 github.com/mattpocock/ski\nlls…", [{
+        type: "url",
+        displayText: "github.com/mattpocock/skills…",
+        html: '<a href="https://t.co/2cpO5gsV5S">github.com/mattpocock/skills…</a>',
+        href: "https://t.co/2cpO5gsV5S",
+        candidates: ["github.com/mattpocock/skills…"],
+    }]);
+
+    assert.equal(result.markdown, "查看 [github.com/mattpocock/skills…](https://t.co/2cpO5gsV5S)");
+    assert.doesNotMatch(result.markdown, /\[[^\]]*\n[^\]]*\]\(/);
+});
+
 test("restoreTranslatedLinks appends an original URL omitted by the translation provider", () => {
     const result = restoreTranslatedLinks("译文 https://t.co/provider 试用地址：", [{
         type: "url",

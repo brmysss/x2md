@@ -271,9 +271,12 @@
             captureUi.setButtonState(btn, "loading", "X2MD 正在保存");
             const sendCapture = (data) => sendToBackground(data, { button: btn });
 
-            const performCapture = () => {
+            const performCapture = async () => {
+                const scope = options.captureTarget?.closest?.("article, [role='article']") ||
+                    btn?.closest?.("article, [role='article']") || document;
                 let captureDocument;
                 try {
+                    await X2MDXTranslationUI.prepareCapture(scope);
                     captureDocument = xCaptureAdapter.capture({ document, location, trigger: options.captureTarget || btn });
                 } catch (error) {
                     console.error("[x2md] X DOM 提取异常：", error);
@@ -289,8 +292,6 @@
                     }
                     let payload = xCaptureAdapter.normalize(captureDocument);
                     if (options.customSavePath) payload.x2md_custom_save_path = { ...options.customSavePath };
-                    const scope = options.captureTarget?.closest?.("article, [role='article']") ||
-                        btn?.closest?.("article, [role='article']") || document;
                     payload = X2MDXTranslationUI.applyVisibleTranslationOverride(payload, scope);
                     showToast(captureDocument.content.type === "article" ? "已识别为 X Article，正在保存…" : "正在保存 X 内容…", "loading", null);
                     sendCapture(payload);

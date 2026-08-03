@@ -9,6 +9,60 @@ test("exports a narrow mount, schedule, and capture-override interface", () => {
     assert.equal(typeof translationUi.mount, "function");
     assert.equal(typeof translationUi.schedule, "function");
     assert.equal(typeof translationUi.applyVisibleTranslationOverride, "function");
+    assert.equal(typeof translationUi.prepareCapture, "function");
+});
+
+test("prepares feed capture by expanding truncated tweet text", async () => {
+    let expanded = false;
+    const tweetText = {};
+    const control = {
+        innerText: "显示更多",
+        textContent: "显示更多",
+        isConnected: true,
+        getAttribute(name) { return name === "data-testid" ? "tweet-text-show-more-link" : ""; },
+        closest() { return null; },
+        parentElement: {
+            querySelector(selector) {
+                return selector === ':scope > [data-testid="tweetText"]' ? tweetText : null;
+            },
+        },
+        click() { expanded = true; },
+    };
+    const scope = {
+        get innerText() { return expanded ? "完整推文正文" : "截断正文"; },
+        querySelector(selector) { return selector === '[data-testid="tweetText"]' ? tweetText : null; },
+        querySelectorAll(selector) {
+            return selector === '[data-testid="tweet-text-show-more-link"]' && !expanded ? [control] : [];
+        },
+    };
+
+    assert.equal(await translationUi.prepareCapture(scope), 1);
+    assert.equal(expanded, true);
+});
+
+test("does not click unrelated controls that only share the show-more label", async () => {
+    let clicks = 0;
+    const tweetText = {};
+    const scope = {
+        innerText: "截断正文",
+        querySelector(selector) { return selector === '[data-testid="tweetText"]' ? tweetText : null; },
+        querySelectorAll(selector) {
+            return selector === '[data-testid="tweet-text-show-more-link"]' ? [unrelated] : [];
+        },
+    };
+    const unrelated = {
+        innerText: "显示更多",
+        textContent: "显示更多",
+        closest() { return null; },
+        parentElement: {
+            querySelector() { return {}; },
+        },
+        click() { clicks++; },
+    };
+
+    assert.equal(await translationUi.prepareCapture(scope), 0);
+    assert.equal(clicks, 0);
+    assert.equal(unrelated.innerText, "显示更多");
 });
 
 test("applies an in-memory translation override without persistence", () => {
@@ -69,6 +123,7 @@ test("content entry delegates X translation UI and contains no DOM translation a
     assert.match(runtime, /X2MDXTranslationUI\.mount\(\)/);
     assert.match(runtime, /X2MDXTranslationUI\.schedule\(\)/);
     assert.match(runtime, /X2MDXTranslationUI\.applyVisibleTranslationOverride/);
+    assert.match(runtime, /await X2MDXTranslationUI\.prepareCapture\(scope\);[\s\S]{0,300}xCaptureAdapter\.capture/);
     for (const implementation of [
         "translateArticleInPlace",
         "replaceElementTextWithTranslation",
@@ -114,6 +169,7 @@ test("tweet translation reconstructs links instead of delegating rendering to X"
     assert.doesNotMatch(source, /markNativeTwitterTranslation\(targetScope\)/);
     assert.match(source, /await restoreNativeTwitterOriginalForTranslation\(targetScope\);/);
     assert.match(source, /buildNativeLikeTweetTranslationHtml\(translatedText, target\.textEl\)/);
+    assert.match(source, /displayText:\s*isUrlLike \? compactVisibleText : visibleText/);
 });
 
 test("article toolbar buttons mount beside native controls without a floating fallback", () => {

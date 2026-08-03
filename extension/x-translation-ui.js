@@ -334,9 +334,15 @@
 
     function findExpandableTweetTextControls(scope = document) {
         const ctx = scope || document;
+        const primaryText = ctx.matches?.('[data-testid="tweetText"]')
+            ? ctx
+            : ctx.querySelector?.('[data-testid="tweetText"]');
+        if (!primaryText) return [];
         const controls = [];
-        for (const el of ctx.querySelectorAll?.('button, [role="button"]') || []) {
+        for (const el of ctx.querySelectorAll?.('[data-testid="tweet-text-show-more-link"]') || []) {
             if (el.closest(`.${X_INLINE_TRANSLATION_BLOCK_CLASS}`)) continue;
+            const ownerText = el.parentElement?.querySelector?.(':scope > [data-testid="tweetText"]');
+            if (ownerText !== primaryText) continue;
             const text = (el.innerText || el.textContent || el.getAttribute?.("aria-label") || "").trim();
             if (isExpandableTweetTextControl(text)) controls.push(el);
         }
@@ -345,7 +351,7 @@
 
     async function expandCollapsedTweetText(scope = document) {
         const ctx = scope || document;
-        const textRoot = ctx === document ? document.body : ctx;
+        const textRoot = ctx === globalScope.document ? globalScope.document?.body : ctx;
         const beforeText = normalizeSpaces(textRoot?.innerText || textRoot?.textContent || "");
         const controls = findExpandableTweetTextControls(ctx);
         if (!controls.length) return 0;
@@ -806,7 +812,7 @@
                 candidates,
                 html: sanitizeTwitterNativeTranslationHtml(clone.outerHTML),
                 href: safeHref,
-                displayText: visibleText,
+                displayText: isUrlLike ? compactVisibleText : visibleText,
                 type: isMentionOrHash ? "mention" : (isUrlLike ? "url" : "link"),
                 inlineBefore: displayIndex > 0 && originalText[displayIndex - 1] !== "\n",
                 inlineAfter: displayIndex >= 0 && displayIndex + visibleText.length < originalText.length &&
@@ -1766,6 +1772,7 @@
             scheduleAutoTranslateLoadedContent();
             scheduleArticleTitleAutoTranslation();
         },
+        prepareCapture: expandCollapsedTweetText,
         applyVisibleTranslationOverride: withVisibleTranslationOverride,
         normalizeRemoteCopyContent,
     };
