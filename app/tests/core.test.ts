@@ -114,6 +114,22 @@ test("Tweet 译文保留真实换行并移除不安全 Markdown 链接目标", (
   assert.doesNotMatch(content, /\[运/);
 });
 
+test("Tweet 译文会完整移除带转义标签和原始括号的不安全链接", () => {
+  const [, content] = buildMarkdown({
+    type: "tweet",
+    text: "Original",
+    url: "https://x.com/a/status/unsafe-escaped-label",
+    prefer_translated_content: true,
+    translation_override: {
+      type: "tweet",
+      markdown: "说明：\n[safe\\]label](javascript:alert(1) \"提示\")\n结束",
+    },
+  }, baseCfg);
+
+  assert.match(content, /说明：\nsafe\]label\n结束/);
+  assert.doesNotMatch(content, /javascript:|提示|\"\)/);
+});
+
 
 test("Tweet 图片去重时合并 jpg 路径和 format 参数变体", () => {
   const [, content] = buildMarkdown({

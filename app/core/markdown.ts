@@ -15,7 +15,7 @@ function normalizeTranslationText(value: unknown): string {
 
 function sanitizeTweetMarkdownLinks(value: unknown): string {
   return String(value ?? "").replace(
-    /\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/g,
+    /\[((?:\\.|[^\]\\])*)\]\(\s*((?:\\.|[^()\s]|\([^()\s]*\))+)(?:\s+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^)\\])*\)))?\s*\)/g,
     (_whole, label, target) => {
     try {
       const parsed = new URL(target);
