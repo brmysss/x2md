@@ -39,8 +39,41 @@
         }
     }
 
+    function cleanupOriginallyInlineLinkLineBreaks(text, descriptors) {
+        let result = String(text || "");
+        const occurrences = new Map();
+        for (const descriptor of descriptors) {
+            if (descriptor.type !== "url") continue;
+            const pattern = makeLooseInlineTextPattern(descriptor.displayText);
+            if (!pattern) continue;
+            const key = String(descriptor.displayText || "").toLowerCase();
+            const occurrence = occurrences.get(key) || 0;
+            const boundedPattern = `(?:^|(?<=[^A-Za-z0-9@._/-]))(${pattern})(?![-A-Za-z0-9._/…])`;
+            const matches = Array.from(result.matchAll(new RegExp(boundedPattern, "gi")));
+            const match = matches[occurrence];
+            occurrences.set(key, occurrence + 1);
+            if (!match || match.index === undefined) continue;
+
+            let start = match.index;
+            if (descriptor.inlineBefore) {
+                const before = result.slice(0, start);
+                const joinedBefore = before.replace(/([^\n])\n[ \t]*$/, "$1 ");
+                start += joinedBefore.length - before.length;
+                result = joinedBefore + result.slice(match.index);
+            }
+            if (descriptor.inlineAfter) {
+                const end = start + match[0].length;
+                result = result.slice(0, end) + result.slice(end).replace(/^[ \t]*\n([^\n])/, " $1");
+            }
+        }
+        return result;
+    }
+
     function restoreTranslatedLinks(text, descriptors = []) {
-        let tokenizedText = String(text || "").replace(/\r\n/g, "\n").trim();
+        let tokenizedText = cleanupOriginallyInlineLinkLineBreaks(
+            String(text || "").replace(/\r\n/g, "\n").trim(),
+            descriptors,
+        );
         const tokens = [];
         const tokenCorpus = [tokenizedText, ...descriptors.flatMap((descriptor) => [
             descriptor.html,
@@ -352,6 +385,50 @@
         }
     }
 
+    function preserveOriginalInlineMarkdownLinkPlacement(translatedText, originalText) {
+        let result = String(translatedText || "");
+        const original = String(originalText || "");
+        const originalLinkPattern = /\[([^\]]+)\]\(https?:\/\/[^)\s]+\)/g;
+        const links = Array.from(original.matchAll(originalLinkPattern), (match) => {
+            const beforeIndex = match.index - 1;
+            const afterIndex = match.index + match[0].length;
+            return {
+                type: "url",
+                displayText: match[1],
+                markdown: match[0],
+                inlineBefore: beforeIndex >= 0 && original[beforeIndex] !== "\n",
+                inlineAfter: afterIndex < original.length && original[afterIndex] !== "\n",
+            };
+        });
+        if (!links.length) return result;
+
+        for (const label of new Set(links.map((link) => link.displayText))) {
+            const labelPattern = escapeRegExp(label);
+            result = result.replace(
+                new RegExp(`\\[${labelPattern}\\]\\(https?:\\/\\/[^)\\s]+\\)`, "gi"),
+                label,
+            );
+        }
+        result = cleanupOriginallyInlineLinkLineBreaks(result, links);
+
+        let tokenPrefix = "\uE000X2MD_ORIGINAL_LINK\uE001";
+        while (result.includes(tokenPrefix)) tokenPrefix += "\uE002";
+        const tokens = [];
+        for (const link of links) {
+            const labelPattern = escapeRegExp(link.displayText);
+            const matcher = new RegExp(
+                `(^|[^A-Za-z0-9@._/-])(${labelPattern})(?![-A-Za-z0-9._/…])`,
+                "i",
+            );
+            if (!matcher.test(result)) continue;
+            const token = `${tokenPrefix}${tokens.length}\uE003`;
+            result = result.replace(matcher, (_whole, prefix) => `${prefix}${token}`);
+            tokens.push({ token, markdown: link.markdown });
+        }
+        for (const item of tokens) result = result.split(item.token).join(item.markdown);
+        return result;
+    }
+
     function applyTranslationOverrideToData(data = {}) {
         const result = clonePlainData(data);
         if (!result.prefer_translated_content || !result.translation_override) return result;
@@ -368,8 +445,14 @@
             return result;
         }
 
-        const translatedText = normalizeSpaces(override.markdown || override.text || override.article_content || "");
-        if (translatedText) result.text = translatedText;
+        const translatedText = normalizeSpaces(preserveOriginalInlineMarkdownLinkPlacement(
+            override.markdown || override.text || override.article_content || "",
+            result.text || "",
+        ));
+        if (translatedText) {
+            result.text = translatedText;
+            result.translation_override_applied = true;
+        }
         return result;
     }
 

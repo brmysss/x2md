@@ -13,6 +13,16 @@ function normalizeTranslationText(value: unknown): string {
   return cleanupTwitterDisplayUrlLineBreaks(String(value ?? "").replace(/\u00a0/g, " ")).trim();
 }
 
+function sanitizeTweetMarkdownLinks(value: unknown): string {
+  return String(value ?? "").replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (_whole, label, target) => {
+    try {
+      const parsed = new URL(target);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") return `[${label}](${parsed.href})`;
+    } catch {}
+    return String(label).replace(/\\([\\\]])/g, "$1");
+  });
+}
+
 export function applyTranslationOverride(data: Record<string, any>): Record<string, any> {
   if (!data.prefer_translated_content || !data.translation_override || typeof data.translation_override !== "object") return data;
   const result = { ...data };
@@ -28,7 +38,10 @@ export function applyTranslationOverride(data: Record<string, any>): Record<stri
     return result;
   }
 
-  const text = normalizeTranslationText(override.text || override.article_content || "");
+  const source = result.translation_override_applied
+    ? result.text
+    : override.markdown || override.text || override.article_content || "";
+  const text = normalizeTranslationText(sanitizeTweetMarkdownLinks(source));
   if (text) result.text = text;
   return result;
 }

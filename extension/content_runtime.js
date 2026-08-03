@@ -289,7 +289,8 @@
                     }
                     let payload = xCaptureAdapter.normalize(captureDocument);
                     if (options.customSavePath) payload.x2md_custom_save_path = { ...options.customSavePath };
-                    const scope = options.captureTarget || btn?.closest?.("article, [role='article']") || document;
+                    const scope = options.captureTarget?.closest?.("article, [role='article']") ||
+                        btn?.closest?.("article, [role='article']") || document;
                     payload = X2MDXTranslationUI.applyVisibleTranslationOverride(payload, scope);
                     showToast(captureDocument.content.type === "article" ? "已识别为 X Article，正在保存…" : "正在保存 X 内容…", "loading", null);
                     sendCapture(payload);

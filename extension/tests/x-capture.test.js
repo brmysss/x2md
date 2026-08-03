@@ -3,10 +3,14 @@ const assert = require("node:assert/strict");
 
 const { capture, normalize } = require("../site-adapters/x-capture.js");
 
-function node({ text = "", attrs = {}, selectors = {} } = {}) {
+function node({ text = "", attrs = {}, selectors = {}, childNodes = [] } = {}) {
     return {
+        nodeType: attrs.nodeType || 1,
+        nodeValue: attrs.nodeValue || "",
         innerText: text,
         textContent: text,
+        childNodes,
+        href: attrs.href || "",
         src: attrs.src || "",
         alt: attrs.alt || "",
         tagName: attrs.tagName || "DIV",
@@ -91,6 +95,70 @@ test("capture returns a CaptureDocumentV1 for a visible tweet", () => {
         thread: [{ text: "thread continuation", images: [] }],
     });
     assert.deepEqual(result.diagnostics.graphql_operation_ids, { TweetDetail: "operation-id" });
+});
+
+test("capture keeps a visually inline tweet link inline in Markdown", () => {
+    delete global.getTwitterArticleCardTranslationTarget;
+    const status = node({ attrs: { href: "/alice/status/123", tagName: "A" } });
+    const link = node({ text: "agentrouter.org", attrs: { href: "https://agentrouter.org/", tagName: "A" } });
+    const tweetText = node({ childNodes: [
+        node({ text: "- 基础 URL：", attrs: { nodeType: 3, nodeValue: "- 基础 URL：" } }),
+        link,
+        node({ text: "（无 /v1）", attrs: { nodeType: 3, nodeValue: "（无 /v1）" } }),
+    ] });
+    const article = node({ attrs: { tagName: "ARTICLE" }, selectors: {
+        'a[href*="/status/"]': [status],
+        '[data-testid="tweetText"]': [tweetText],
+        '[data-testid="User-Name"]': [], 'div[lang]': [], 'div[dir="auto"]': [], time: [],
+        '[data-testid="tweetPhoto"] img': [],
+        '[data-testid="videoComponent"] video, [data-testid="videoPlayer"] video': [],
+        '[data-testid*="card"] img, [data-testid*="Card"] img': [], img: [],
+        '[data-testid="simpleTweet"]': [], 'a[href*="/article/"]': [], a: [],
+    } });
+    status.closest = () => article;
+    const document = node({ selectors: {
+        "article, [role='article']": [article],
+        'article, [role="article"]': [article],
+        '[role="dialog"], [aria-modal="true"], div': [],
+    } });
+    document.documentElement = { innerHTML: "" };
+
+    const result = capture({
+        document,
+        location: { origin: "https://x.com", href: "https://x.com/alice/status/123", pathname: "/alice/status/123" },
+        trigger: article,
+        capturedAt: "2026-07-11T00:00:00.000Z",
+        graphqlOperationIds: {},
+    });
+
+    assert.equal(result.content.text, "- 基础 URL：[agentrouter.org](https://agentrouter.org/)（无 /v1）");
+});
+
+test("capture escapes tweet link labels and encodes parentheses in targets", () => {
+    delete global.getTwitterArticleCardTranslationTarget;
+    const status = node({ attrs: { href: "/alice/status/123", tagName: "A" } });
+    const link = node({ text: "safe.example](javascript:alert(1))", attrs: { href: "https://safe.example/a(b)", tagName: "A" } });
+    const tweetText = node({ childNodes: [link] });
+    const article = node({ attrs: { tagName: "ARTICLE" }, selectors: {
+        'a[href*="/status/"]': [status], '[data-testid="tweetText"]': [tweetText],
+        '[data-testid="User-Name"]': [], 'div[lang]': [], 'div[dir="auto"]': [], time: [],
+        '[data-testid="tweetPhoto"] img': [], '[data-testid="videoComponent"] video, [data-testid="videoPlayer"] video': [],
+        '[data-testid*="card"] img, [data-testid*="Card"] img': [], img: [],
+        '[data-testid="simpleTweet"]': [], 'a[href*="/article/"]': [], a: [],
+    } });
+    status.closest = () => article;
+    const document = node({ selectors: {
+        "article, [role='article']": [article], 'article, [role="article"]': [article],
+        '[role="dialog"], [aria-modal="true"], div': [],
+    } });
+    document.documentElement = { innerHTML: "" };
+
+    const result = capture({
+        document, location: { origin: "https://x.com", href: "https://x.com/alice/status/123", pathname: "/alice/status/123" },
+        trigger: article, capturedAt: "2026-07-11T00:00:00.000Z", graphqlOperationIds: {},
+    });
+
+    assert.equal(result.content.text, "[safe.example\\](javascript:alert(1))](https://safe.example/a%28b%29)");
 });
 
 test("capture recovers the current status article after X replaces the clicked bookmark button", () => {

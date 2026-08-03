@@ -332,6 +332,37 @@ function stripLeadingReplyMentions(text) {
     return String(text || "").replace(/^(?:\s*@\w{1,20})+\s*/u, "").trimStart();
 }
 
+function formatTweetTextLink(label, href) {
+    try {
+        const parsed = new URL(String(href || ""));
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return String(label || "");
+        const safeLabel = String(label || "").replace(/([\\\]])/g, "\\$1");
+        const safeHref = parsed.href.replace(/\(/g, "%28").replace(/\)/g, "%29");
+        return safeLabel ? `[${safeLabel}](${safeHref})` : "";
+    } catch (error) {
+        return String(label || "");
+    }
+}
+
+function extractTweetTextElement(el) {
+    if (!el?.childNodes?.length) return String(el?.innerText || el?.textContent || "").trim();
+
+    const readNode = (node) => {
+        if (node.nodeType === 3) return node.nodeValue || "";
+        if (node.nodeType !== 1) return "";
+        if (node.tagName === "BR") return "\n";
+        if (node.tagName === "IMG") return node.getAttribute?.("alt") || "";
+        if (node.tagName === "A") {
+            const label = String(node.textContent || node.innerText || "").trim();
+            const href = String(node.href || node.getAttribute?.("href") || "");
+            return formatTweetTextLink(label, href);
+        }
+        return Array.from(node.childNodes || []).map(readNode).join("");
+    };
+
+    return Array.from(el.childNodes).map(readNode).join("").replace(/\u00a0/g, " ").trim();
+}
+
 function extractTweetTextBasic(article) {
     const selectors = [
         '[data-testid="tweetText"]',
@@ -344,7 +375,7 @@ function extractTweetTextBasic(article) {
         for (const el of els) {
             // 跳过 User-Name 容器内的内容
             if (el.closest('[data-testid="User-Name"]')) continue;
-            const text = el.innerText.trim();
+            const text = extractTweetTextElement(el);
             if (text && text.length > 5) return text;
         }
     }

@@ -403,9 +403,11 @@
     function markNativeTwitterTranslation(scope = document) {
         const target = getTranslationTarget(scope);
         if (!target || target.kind !== "tweet" || !target.textEl || !target.text) return false;
+        const nativeLike = buildNativeLikeTweetTranslationHtml(target.text, target.textEl);
         markElementTranslated(target.textEl, {
             type: "tweet",
-            text: target.text,
+            text: nativeLike.text || target.text,
+            markdown: nativeLike.markdown || "",
             source: "twitter_native",
         });
         return true;
@@ -758,6 +760,8 @@
 
     function buildOriginalTweetLinkDescriptors(tweetTextEl) {
         const descriptors = [];
+        const originalText = String(tweetTextEl?.textContent || tweetTextEl?.innerText || "").replace(/\r\n/g, "\n");
+        const displaySearchOffsets = new Map();
         for (const anchor of tweetTextEl?.querySelectorAll?.("a[href]") || []) {
             const href = anchor.href || "";
             const rawHref = anchor.getAttribute("href") || "";
@@ -793,12 +797,19 @@
             clone.setAttribute("rel", "noopener noreferrer nofollow");
             clone.setAttribute("target", "_blank");
 
+            const searchOffset = displaySearchOffsets.get(visibleText) || 0;
+            const displayIndex = originalText.indexOf(visibleText, searchOffset);
+            if (displayIndex >= 0) displaySearchOffsets.set(visibleText, displayIndex + visibleText.length);
+
             descriptors.push({
                 candidates,
                 html: sanitizeTwitterNativeTranslationHtml(clone.outerHTML),
                 href: safeHref,
                 displayText: visibleText,
                 type: isMentionOrHash ? "mention" : (isUrlLike ? "url" : "link"),
+                inlineBefore: displayIndex > 0 && originalText[displayIndex - 1] !== "\n",
+                inlineAfter: displayIndex >= 0 && displayIndex + visibleText.length < originalText.length &&
+                    originalText[displayIndex + visibleText.length] !== "\n",
             });
         }
         return descriptors.filter((item) => item.html);
@@ -1350,9 +1361,11 @@
         if (nativeTarget?.kind === "tweet" && findNativeTwitterTranslationControl(ctx, "original")) {
             const nativeText = String(nativeTarget.text || "").trim();
             if (nativeText) {
+                const nativeLike = buildNativeLikeTweetTranslationHtml(nativeText, nativeTarget.textEl);
                 return {
                     type: "tweet",
-                    text: nativeText,
+                    text: nativeLike.text || nativeText,
+                    markdown: nativeLike.markdown || "",
                     source: "twitter_native",
                 };
             }
@@ -1373,6 +1386,7 @@
         if (!override) return data;
         return applyTranslationOverride({
             ...data,
+            original_text: data.original_text || data.text || "",
             prefer_translated_content: true,
             translation_override: override,
         });

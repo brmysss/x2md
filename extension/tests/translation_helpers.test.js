@@ -53,6 +53,21 @@ test("restoreTranslatedLinks appends an original URL omitted by the translation 
     });
 });
 
+test("restoreTranslatedLinks keeps originally inline URLs on the surrounding line", () => {
+    const result = restoreTranslatedLinks("- 基础 URL：\nagentrouter.org（无 /v1）", [{
+        type: "url",
+        displayText: "agentrouter.org",
+        html: '<a href="https://agentrouter.org/">agentrouter.org</a>',
+        href: "https://agentrouter.org/",
+        candidates: ["agentrouter.org"],
+        inlineBefore: true,
+        inlineAfter: true,
+    }]);
+
+    assert.equal(result.text, "- 基础 URL： agentrouter.org（无 /v1）");
+    assert.equal(result.markdown, "- 基础 URL： [agentrouter.org](https://agentrouter.org/)（无 /v1）");
+});
+
 test("restoreTranslatedLinks binds repeated labels to their original hrefs one at a time", () => {
     const result = restoreTranslatedLinks("same.example 然后 same.example", [
         {
@@ -73,6 +88,35 @@ test("restoreTranslatedLinks binds repeated labels to their original hrefs one a
 
     assert.equal(result.html, '<a href="https://t.co/a">same.example</a> 然后 <a href="https://t.co/b">same.example</a>');
     assert.equal(result.markdown, "[same.example](https://t.co/a) 然后 [same.example](https://t.co/b)");
+});
+
+test("restoreTranslatedLinks preserves mixed line placement for repeated URL labels", () => {
+    const result = restoreTranslatedLinks("甲：\nsame.example 中\nsame.example 新段", [
+        {
+            type: "url", displayText: "same.example", href: "https://one.example/",
+            html: '<a href="https://one.example/">same.example</a>', candidates: ["same.example"],
+            inlineBefore: true, inlineAfter: true,
+        },
+        {
+            type: "url", displayText: "same.example", href: "https://two.example/",
+            html: '<a href="https://two.example/">same.example</a>', candidates: ["same.example"],
+            inlineBefore: false, inlineAfter: true,
+        },
+    ]);
+
+    assert.equal(result.text, "甲： same.example 中\nsame.example 新段");
+    assert.equal(result.markdown, "甲： [same.example](https://one.example/) 中\n[same.example](https://two.example/) 新段");
+});
+
+test("restoreTranslatedLinks does not count a URL label inside a longer hostname", () => {
+    const result = restoreTranslatedLinks("notsame.example\nsame.example 后", [{
+        type: "url", displayText: "same.example", href: "https://one.example/",
+        html: '<a href="https://one.example/">same.example</a>', candidates: ["same.example"],
+        inlineBefore: false, inlineAfter: true,
+    }]);
+
+    assert.equal(result.text, "notsame.example\nsame.example 后");
+    assert.equal(result.markdown, "notsame.example\n[same.example](https://one.example/) 后");
 });
 
 test("restoreTranslatedLinks enforces URL boundaries and safely removes only bare t.co links", () => {
@@ -147,6 +191,75 @@ test("applyTranslationOverrideToData preserves translated tweet link targets as 
     });
 
     assert.equal(result.text, "查看 [example.com](https://t.co/example)");
+});
+
+test("applyTranslationOverrideToData preserves the original inline placement of tweet links", () => {
+    const result = applyTranslationOverrideToData({
+        type: "tweet",
+        text: "- base URL: [agentrouter.org](https://agentrouter.org/) (no /v1)",
+        prefer_translated_content: true,
+        translation_override: {
+            type: "tweet",
+            text: "- 基础 URL：\nagentrouter.org\n（无 /v1）",
+            markdown: "- 基础 URL：\n[agentrouter.org](https://agentrouter.org/)\n（无 /v1）",
+        },
+    });
+
+    assert.equal(
+        result.text,
+        "- 基础 URL： [agentrouter.org](https://agentrouter.org/) （无 /v1）",
+    );
+});
+
+test("applyTranslationOverrideToData restores an inline Markdown link omitted by native translation", () => {
+    const result = applyTranslationOverrideToData({
+        type: "tweet",
+        text: "- base URL: [agentrouter.org](https://agentrouter.org/) (no /v1)",
+        prefer_translated_content: true,
+        translation_override: {
+            type: "tweet",
+            text: "- 基础 URL：\nagentrouter.org（无 /v1）",
+        },
+    });
+
+    assert.equal(
+        result.text,
+        "- 基础 URL： [agentrouter.org](https://agentrouter.org/)（无 /v1）",
+    );
+});
+
+test("applyTranslationOverrideToData does not restore a link inside a longer hostname", () => {
+    const result = applyTranslationOverrideToData({
+        type: "tweet",
+        text: "A [same.example](https://right.example/) B",
+        prefer_translated_content: true,
+        translation_override: {
+            type: "tweet",
+            text: "提及 notsame.example；真正链接：\nsame.example 后",
+        },
+    });
+
+    assert.equal(
+        result.text,
+        "提及 notsame.example；真正链接： [same.example](https://right.example/) 后",
+    );
+});
+
+test("applyTranslationOverrideToData restores repeated labels to their original targets", () => {
+    const result = applyTranslationOverrideToData({
+        type: "tweet",
+        text: "A [same.example](https://one.example/) B\n[same.example](https://two.example/) C",
+        prefer_translated_content: true,
+        translation_override: {
+            type: "tweet",
+            text: "甲：\nsame.example 中\nsame.example 新段",
+        },
+    });
+
+    assert.equal(
+        result.text,
+        "甲： [same.example](https://one.example/) 中\n[same.example](https://two.example/) 新段",
+    );
 });
 
 test("isProbablySimplifiedChinese distinguishes simplified, traditional, and non-Chinese titles", () => {
@@ -248,6 +361,13 @@ test("applyTranslationOverrideToData cleans split X display links in translated 
 
 test("cleanupTwitterDisplayUrlLineBreaks leaves normal text untouched", () => {
     assert.equal(cleanupTwitterDisplayUrlLineBreaks("访问 https://example.com/path"), "访问 https://example.com/path");
+});
+
+test("cleanupTwitterDisplayUrlLineBreaks preserves ordinary line breaks before bare domains", () => {
+    assert.equal(
+        cleanupTwitterDisplayUrlLineBreaks("第一段。\nexample.com 是下一行。"),
+        "第一段。\nexample.com 是下一行。",
+    );
 });
 
 test("stripXArticleLinksFromText removes feed article card links only", () => {

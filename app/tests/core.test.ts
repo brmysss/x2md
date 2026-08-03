@@ -78,6 +78,41 @@ test("Tweet 译文和图片 alt 写入 Markdown", () => {
   assert.match(content, /!\[\]\(https:\/\/pbs\.twimg\.com\/media\/watch\.jpg\?format=jpg&name=orig\)\n```\nApple Watch ⌚\n```/);
 });
 
+test("Tweet 译文中的行内展示链接保持在原行", () => {
+  const [, content] = buildMarkdown({
+    type: "tweet",
+    text: "基础 URL： [agentrouter.org](https://agentrouter.org/)（无 /v1）",
+    original_text: "Base URL: [agentrouter.org](https://agentrouter.org/) (no /v1)",
+    url: "https://x.com/a/status/1",
+    prefer_translated_content: true,
+    translation_override_applied: true,
+    translation_override: {
+      type: "tweet",
+      text: "基础 URL：\nagentrouter.org（无 /v1）",
+      markdown: "基础 URL：\n[agentrouter.org](https://wrong.example/)（无 /v1）",
+    },
+  }, baseCfg);
+
+  assert.match(content, /基础 URL： \[agentrouter\.org\]\(https:\/\/agentrouter\.org\/\)（无 \/v1）/);
+  assert.doesNotMatch(content, /基础 URL：\nagentrouter\.org/);
+});
+
+test("Tweet 译文保留真实换行并移除不安全 Markdown 链接目标", () => {
+  const [, content] = buildMarkdown({
+    type: "tweet",
+    text: "Original",
+    url: "https://x.com/a/status/unsafe",
+    prefer_translated_content: true,
+    translation_override: {
+      type: "tweet",
+      markdown: "说明：\n[运行](javascript:alert(1))",
+    },
+  }, baseCfg);
+
+  assert.match(content, /说明：\n运行/);
+  assert.doesNotMatch(content, /javascript:/);
+});
+
 
 test("Tweet 图片去重时合并 jpg 路径和 format 参数变体", () => {
   const [, content] = buildMarkdown({
