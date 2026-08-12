@@ -133,6 +133,22 @@ function appendImage(lines: string[], imgUrl: string, label = "", prefix = "", a
   appendAltFence(lines, getImageAltText(origUrl, altMap), prefix);
 }
 
+function escapeHtmlAttribute(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function appendTweetImageRow(lines: string[], images: string[], altMap: unknown): void {
+  const width = `${Math.round(100000 / images.length) / 1000}%`;
+  lines.push('<div style="display: flex; gap: 8px;">');
+  for (const image of images) {
+    const normalizedUrl = normalizeImageUrl(image);
+    const url = escapeHtmlAttribute(normalizedUrl);
+    const alt = escapeHtmlAttribute(getImageAltText(normalizedUrl, altMap));
+    lines.push(`<img src="${url}"${alt ? ` alt="${alt}"` : ""} style="flex: 1; min-width: 0; max-width: ${width}; object-fit: cover;" />`);
+  }
+  lines.push("</div>");
+}
+
 function formatPollOption(option: Record<string, any>): string {
   const label = String(option.label || option.text || "").trim();
   if (!label) return "";
@@ -465,7 +481,11 @@ export function buildMarkdown(input: Record<string, any>, cfg: X2MDConfig | Reco
 
     if (images.length) {
       lines.push("");
-      images.forEach((imgUrl, index) => appendImage(lines, imgUrl, "", "", index === 0 ? imageAltTexts : { ...imageAltTexts, __x2md_fallback_alt: "" }));
+      if (contentType === "tweet" && images.length > 1 && images.every((image) => !image.startsWith("![["))) {
+        appendTweetImageRow(lines, images, imageAltTexts);
+      } else {
+        images.forEach((imgUrl, index) => appendImage(lines, imgUrl, "", "", index === 0 ? imageAltTexts : { ...imageAltTexts, __x2md_fallback_alt: "" }));
+      }
     }
     appendUnusedVideos(lines, textResult);
     appendPollBlock(lines, pollData);

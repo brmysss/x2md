@@ -146,9 +146,53 @@ test("Tweet 图片去重时合并 jpg 路径和 format 参数变体", () => {
     },
   }, baseCfg);
 
-  assert.equal((content.match(/!\[\]\(https:\/\/pbs\.twimg\.com\/media\/HMvssQ1a8AAE9Ij/g) || []).length, 1);
-  assert.equal((content.match(/!\[\]\(https:\/\/pbs\.twimg\.com\/media\//g) || []).length, 2);
-  assert.match(content, /```\n图一 ALT\n```/);
+  assert.equal((content.match(/HMvssQ1a8AAE9Ij/g) || []).length, 1);
+  assert.equal((content.match(/<img src="https:\/\/pbs\.twimg\.com\/media\//g) || []).length, 2);
+  assert.match(content, /alt="图一 ALT"/);
+});
+
+test("普通单条 Tweet 的多张图片使用一行 flex 图片组", () => {
+  const [, content] = buildMarkdown({
+    type: "tweet",
+    text: "iPhone 多开微信",
+    url: "https://x.com/going2happy/status/4",
+    images: [
+      "https://pbs.twimg.com/media/one.jpg?name=small",
+      "https://pbs.twimg.com/media/two.jpg?name=small",
+      "https://pbs.twimg.com/media/three.jpg?name=small",
+    ],
+  }, baseCfg);
+
+  assert.match(content, /<div style="display: flex; gap: 8px;">/);
+  assert.equal((content.match(/<img src="https:\/\/pbs\.twimg\.com\/media\//g) || []).length, 3);
+  assert.equal((content.match(/style="flex: 1; min-width: 0; max-width: 33\.333%; object-fit: cover;"/g) || []).length, 3);
+  assert.ok(content.indexOf("one.jpg") < content.indexOf("two.jpg"));
+  assert.ok(content.indexOf("two.jpg") < content.indexOf("three.jpg"));
+  assert.doesNotMatch(content, /!\[\]\(https:\/\/pbs\.twimg\.com\/media\//);
+});
+
+test("Article 和单图 Tweet 保持原有 Markdown 图片格式", () => {
+  const [, tweet] = buildMarkdown({
+    type: "tweet",
+    text: "单图",
+    url: "https://x.com/a/status/5",
+    images: ["https://pbs.twimg.com/media/one.jpg?name=small"],
+  }, baseCfg);
+  const [, article] = buildMarkdown({
+    type: "article",
+    article_title: "文章",
+    article_content: "正文\n\n![](https://pbs.twimg.com/media/one.jpg?name=orig)",
+    url: "https://x.com/a/status/6",
+    images: [
+      "https://pbs.twimg.com/media/one.jpg?name=small",
+      "https://pbs.twimg.com/media/two.jpg?name=small",
+    ],
+  }, baseCfg);
+
+  assert.match(tweet, /!\[\]\(https:\/\/pbs\.twimg\.com\/media\/one\.jpg\?name=orig\)/);
+  assert.doesNotMatch(tweet, /<div style=/);
+  assert.match(article, /!\[\]\(https:\/\/pbs\.twimg\.com\/media\/one\.jpg\?name=orig\)/);
+  assert.doesNotMatch(article, /<div style=/);
 });
 
 
