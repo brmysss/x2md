@@ -163,7 +163,7 @@ function findTweetUrl(btn) {
     }
 
     const ctx = articleEl || activeDocument;
-    if (articleEl && articleEl === currentArticle) {
+    if (articleEl && (articleEl === currentArticle || currentArticle?.contains?.(articleEl))) {
         return { url: activeLocation.origin + currentPath, article: articleEl };
     }
 

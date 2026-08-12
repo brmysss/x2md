@@ -236,6 +236,42 @@ test("a new X article keeps its own source when it embeds a previously saved quo
     assert.equal(result.content.text, "the requested status text");
 });
 
+test("an X article read view nested inside the current status keeps the outer status source", () => {
+    global.getTwitterArticleCardTranslationTarget = () => null;
+    const currentStatus = node({ attrs: { href: "/alice/status/200", tagName: "A" } });
+    const quotedStatus = node({ attrs: { href: "/alice/status/100", tagName: "A" } });
+    const readView = node({ attrs: { tagName: "ARTICLE", role: "article" }, selectors: {
+        'a[href*="/status/"]': [quotedStatus],
+        '[data-testid="tweetText"]': [node({ text: "quoted article text" })],
+        '[data-testid="User-Name"]': [], 'div[lang]': [], 'div[dir="auto"]': [], time: [],
+        '[data-testid="tweetPhoto"] img': [],
+        '[data-testid="videoComponent"] video, [data-testid="videoPlayer"] video': [],
+        '[data-testid*="card"] img, [data-testid*="Card"] img': [], img: [],
+        '[data-testid="simpleTweet"]': [], 'a[href*="/article/"]': [], a: [],
+    } });
+    const statusArticle = node({ attrs: { tagName: "ARTICLE" }, selectors: {
+        'a[href*="/status/"]': [currentStatus, quotedStatus],
+    } });
+    statusArticle.contains = (element) => element === readView;
+    readView.parentElement = statusArticle;
+    const document = node({ selectors: {
+        'article, [role="article"]': [statusArticle, readView],
+        "article, [role='article']": [statusArticle, readView],
+        '[role="dialog"], [aria-modal="true"], div': [],
+    } });
+    document.documentElement = { innerHTML: "" };
+
+    const result = capture({
+        document,
+        location: { origin: "https://x.com", href: "https://x.com/alice/status/200", pathname: "/alice/status/200" },
+        trigger: readView,
+        capturedAt: "2026-07-11T00:00:00.000Z",
+        graphqlOperationIds: {},
+    });
+
+    assert.equal(result.source.url, "https://x.com/alice/status/200");
+});
+
 test("capture keeps a clicked reply article on a status detail page", () => {
     global.getTwitterArticleCardTranslationTarget = () => null;
     const currentStatus = node({ attrs: { href: "/alice/status/200", tagName: "A" } });
