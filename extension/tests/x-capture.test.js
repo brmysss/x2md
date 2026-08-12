@@ -203,7 +203,7 @@ test("capture recovers the current status article after X replaces the clicked b
     assert.equal(result.content.text, "the requested status text");
 });
 
-test("capture prefers the current status over a nested quote link", () => {
+test("a new X article keeps its own source when it embeds a previously saved quote", () => {
     global.getTwitterArticleCardTranslationTarget = () => null;
     const quotedStatus = node({ attrs: { href: "/alice/status/100", tagName: "A" } });
     quotedStatus.closest = (selector) => selector === '[data-testid="simpleTweet"]' ? {} : null;

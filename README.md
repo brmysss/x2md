@@ -153,7 +153,7 @@ V4 会处理 X 的普通推文、Thread、Note / Article、引用内容、完整
 - [平台支持说明](docs/platform-support.md)：Mac Stable 与 Windows Beta 的能力边界。
 - [构建与打包](BUILD.md)：开发环境、测试和发布产物说明。
 - [V4 产品设计](docs/prd/x2md-v4-reliable-knowledge-inbox-prd.md)：完整产品目标和技术决策。
-- [V4 Release Notes](release/v4.1.1/RELEASE_NOTES.md)：本次版本新增与修复内容。
+- [V4 Release Notes](release/v4.1.2/RELEASE_NOTES.md)：本次版本新增与修复内容。
 
 ## 给开发者
 
@@ -199,6 +199,6 @@ scripts/           # 构建、发布与冒烟测试
 
 如果 X2MD 帮你留下了有价值的内容，欢迎点一个 ⭐。
 
-[下载最新版](https://github.com/izscc/x2md/releases/latest) · [报告问题](https://github.com/izscc/x2md/issues) · [查看更新日志](release/v4.1.1/RELEASE_NOTES.md)
+[下载最新版](https://github.com/izscc/x2md/releases/latest) · [报告问题](https://github.com/izscc/x2md/issues) · [查看更新日志](release/v4.1.2/RELEASE_NOTES.md)
 
 </div>
