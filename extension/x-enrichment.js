@@ -824,11 +824,16 @@ async function enrichArticleContentFromStatusApi(data = {}) {
             type: "tweet",
             url: data.url,
         });
-        const apiArticle = apiData.x_article_api;
+        const apiArticle = await resolveArticleTweetEntities(
+            apiData.x_article_api,
+            data.quote_tweet,
+            null,
+            data.graphql_operation_ids,
+        );
         if (!apiArticle?.content) return data;
 
         const currentContent = String(data.article_content || data.content || "").trim();
-        const apiContent = materializeArticleTweetEntities(String(apiArticle.content || "").trim(), data.quote_tweet);
+        const apiContent = String(apiArticle.content || "").trim();
         const shouldPreferApi = shouldPreferApiArticleContent(currentContent, apiContent);
 
         const nextContent = shouldPreferApi
@@ -860,19 +865,53 @@ function shouldPreferApiArticleContent(currentContent, apiContent) {
 }
 
 function materializeArticleTweetEntities(content, quoteTweet) {
-    const quoteId = String(quoteTweet?.url || "").match(/\/status\/(\d+)/)?.[1] || "";
+    const quotes = Array.isArray(quoteTweet) ? quoteTweet : [quoteTweet];
+    const quotesById = new Map(quotes.map((quote) => [
+        String(quote?.url || "").match(/\/status\/(\d+)/)?.[1] || "",
+        quote,
+    ]).filter(([tweetId, quote]) => tweetId && quote));
     return String(content || "").replace(/\[\[X2MD_TWEET_(\d+)\]\]/g, (placeholder, tweetId) => {
-        if (!quoteTweet || quoteId !== tweetId) return `> [!quote] 引用推文\n> 原文：https://x.com/i/status/${tweetId}`;
+        const quote = quotesById.get(tweetId);
+        if (!quote) return placeholder;
         const lines = ["> [!quote] 引用推文"];
-        for (const line of String(quoteTweet.text || "").split("\n")) {
+        for (const line of String(quote.text || "").split("\n")) {
             lines.push(line.trim() ? `> ${line}` : ">");
         }
-        for (const image of Array.isArray(quoteTweet.images) ? quoteTweet.images : []) {
+        for (const image of Array.isArray(quote.images) ? quote.images : []) {
             lines.push(">", `> ![](${image})`);
         }
-        lines.push(">", `> 原文：${quoteTweet.url}`);
+        lines.push(">", `> 原文：${quote.url}`);
         return lines.join("\n");
     });
+}
+
+async function resolveArticleTweetEntities(noteResult, quoteTweet, fetchTweet = null, graphqlOperationIds = {}) {
+    if (!noteResult?.content) return noteResult;
+    const tweetIds = Array.from(
+        String(noteResult.content).matchAll(/\[\[X2MD_TWEET_(\d+)\]\]/g),
+        (match) => match[1],
+    );
+    if (!tweetIds.length) return noteResult;
+
+    const quotes = quoteTweet ? [quoteTweet] : [];
+    const knownIds = new Set(quotes.map((quote) => String(quote?.url || "").match(/\/status\/(\d+)/)?.[1]).filter(Boolean));
+    for (const tweetId of Array.from(new Set(tweetIds))) {
+        if (knownIds.has(tweetId)) continue;
+        const fetched = fetchTweet
+            ? await fetchTweet(tweetId)
+            : await fetchFullTweetData({
+                url: `https://x.com/i/status/${tweetId}`,
+                text: "",
+                images: [],
+                graphql_operation_ids: graphqlOperationIds,
+            });
+        if (!fetched || (!fetched.text && !(fetched.images || []).length && !(fetched.videos || []).length)) continue;
+        quotes.push({ ...fetched, url: fetched.url || `https://x.com/i/status/${tweetId}` });
+        knownIds.add(tweetId);
+    }
+    const content = materializeArticleTweetEntities(noteResult.content, quotes)
+        .replace(/\[\[X2MD_TWEET_(\d+)\]\]/g, (_placeholder, tweetId) => `[引用推文](https://x.com/i/status/${tweetId})`);
+    return { ...noteResult, content };
 }
 
 async function resolveCopyContentText(copyData = {}) {
@@ -886,9 +925,15 @@ async function resolveCopyContentText(copyData = {}) {
 
     if (articleUrl) {
         const statusUrl = normalizeArticleToStatusUrl(articleUrl);
-        const noteResult = enrichedData.x_article_api ||
+        const unresolvedNoteResult = enrichedData.x_article_api ||
             (statusUrl ? await fetchNoteContent(statusUrl) : null) ||
             await fetchNoteContent(articleUrl);
+        const noteResult = await resolveArticleTweetEntities(
+            unresolvedNoteResult,
+            enrichedData.quote_tweet,
+            null,
+            enrichedData.graphql_operation_ids,
+        );
         const payload = buildCopyPayloadFromNoteResult(noteResult, enrichedData.text || copyData.text || "");
         if (payload?.text) return { ...payload, source: "x_article", articleUrl, statusUrl };
     }
@@ -940,6 +985,12 @@ async function fetchProfileArticleForBatch(articleData = {}) {
     if (!noteResult || !noteResult.content) {
         return null;
     }
+    noteResult = await resolveArticleTweetEntities(
+        noteResult,
+        enrichedData.quote_tweet,
+        null,
+        enrichedData.graphql_operation_ids,
+    );
     const finalUrl = sourceTweetUrl || articleUrl;
     return {
         ...enrichedData,
@@ -1146,7 +1197,7 @@ async function enrichCaptureData(input) {
         }
     }
 
-    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent, materializeArticleTweetEntities };
+    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent, materializeArticleTweetEntities, resolveArticleTweetEntities };
     root.X2MDXEnrichment = api;
     if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : self);

@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 Object.assign(global, require("../media_helpers.js"));
 Object.assign(global, require("../twitter_graphql.js"));
 require("../x-enrichment.js");
-const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent, materializeArticleTweetEntities } = global.X2MDXEnrichment;
+const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent, materializeArticleTweetEntities, resolveArticleTweetEntities } = global.X2MDXEnrichment;
 
 test("article enrichment keeps DOM content when it contains an inline quote", () => {
     const domContent = "没看过上一篇的，可以从这里进：\n\n> [!quote] 引用推文\n> 上一篇内容\n\n装过1.4的不用重下完整包。";
@@ -28,6 +28,39 @@ test("article enrichment inserts the captured tweet at the GraphQL entity positi
     assert.ok(result.indexOf("> [!quote] 引用推文") < result.indexOf("引用之后"));
     assert.match(result, /> 上一篇内容/);
     assert.match(result, /> 原文：https:\/\/x\.com\/davinci_seven\/status\/2083431662021497274/);
+});
+
+test("article enrichment fetches embedded tweet entities by their interface IDs", async () => {
+    const noteResult = {
+        content: "没看过上一篇的，可以从这里进：\n\n[[X2MD_TWEET_2083431662021497274]]\n\n装过1.4的不用重下完整包。",
+    };
+    const requestedIds = [];
+
+    const result = await resolveArticleTweetEntities(noteResult, null, async (tweetId) => {
+        requestedIds.push(tweetId);
+        return {
+            text: "花钱买的8G显卡，别只拿来打游戏了。",
+            images: ["https://pbs.twimg.com/media/quote.jpg?format=jpg&name=orig"],
+            url: `https://x.com/davinci_seven/status/${tweetId}`,
+        };
+    });
+
+    assert.deepEqual(requestedIds, ["2083431662021497274"]);
+    assert.ok(result.content.indexOf("没看过上一篇") < result.content.indexOf("> [!quote] 引用推文"));
+    assert.ok(result.content.indexOf("> [!quote] 引用推文") < result.content.indexOf("装过1.4"));
+    assert.match(result.content, /> 花钱买的8G显卡/);
+    assert.doesNotMatch(result.content, /\[\[X2MD_TWEET_/);
+});
+
+test("unresolved article tweet entities keep their position without overriding a DOM quote", async () => {
+    const domContent = "引用之前\n\n> [!quote] 引用推文\n> DOM 完整引用\n\n引用之后";
+    const result = await resolveArticleTweetEntities({
+        content: "引用之前\n\n[[X2MD_TWEET_42]]\n\n引用之后",
+    }, null, async () => null);
+
+    assert.match(result.content, /\[引用推文\]\(https:\/\/x\.com\/i\/status\/42\)/);
+    assert.doesNotMatch(result.content, /\[\[X2MD_TWEET_/);
+    assert.equal(shouldPreferApiArticleContent(domContent, result.content), false);
 });
 
 test("GraphQL tweet text decodes HTML entities before Markdown rendering", () => {
