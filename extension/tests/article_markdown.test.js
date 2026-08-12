@@ -273,6 +273,38 @@ test("extractArticleMarkdown preserves embedded X quote tweet position in articl
     assert.match(markdown, /原文：https:\/\/x\.com\/app_sail\/status\/2071975700824011104/);
 });
 
+test("extractArticleMarkdown preserves nested tweet article position in X article read view", () => {
+    const quote = elementNode("article", {
+        attrs: { "data-testid": "tweet" },
+        style: { display: "block" },
+        children: [
+            elementNode("a", {
+                attrs: { href: "/davinci_seven/status/2083431662021497274" },
+                children: [textNode("8月1日")],
+            }),
+            elementNode("div", {
+                attrs: { "data-testid": "tweetText" },
+                children: [textNode("花钱买的8G显卡，别只拿来打游戏了。")],
+            }),
+        ],
+    });
+    const tree = elementNode("div", {
+        attrs: { "data-testid": "twitterArticleReadView" },
+        style: { display: "block" },
+        children: [
+            elementNode("p", { children: [textNode("没看过上一篇的，可以从这里进：")] }),
+            quote,
+            elementNode("p", { children: [textNode("装过1.4的不用重下完整包。")]}),
+        ],
+    });
+
+    const markdown = extractArticleMarkdown(tree, { getComputedStyle });
+
+    assert.ok(markdown.indexOf("没看过上一篇") < markdown.indexOf("> [!quote] 引用推文"));
+    assert.ok(markdown.indexOf("> [!quote] 引用推文") < markdown.indexOf("装过1.4"));
+    assert.match(markdown, /原文：https:\/\/x\.com\/davinci_seven\/status\/2083431662021497274/);
+});
+
 test("extractArticleMarkdown formats embedded X quote tweet without engagement metadata", () => {
     const tree = elementNode("div", {
         attrs: { "data-testid": "simpleTweet" },

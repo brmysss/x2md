@@ -68,7 +68,7 @@
         if (testId === "simpleTweet") return true;
         return getTagName(element) === "article" &&
             testId === "tweet" &&
-            !!safeClosest(element, '[data-testid="twitterArticleRichTextView"], [data-testid="longformRichTextComponent"]');
+            !!safeClosest(element, '[data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], [data-testid="longformRichTextComponent"]');
     }
 
     function shouldSkipElement(element) {

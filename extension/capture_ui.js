@@ -59,12 +59,14 @@
         const copyText = options.copyText || ((text) => globalThis.navigator?.clipboard?.writeText?.(text));
         let toastTimer = null;
         let retryState = null;
+        let resaveState = null;
         let currentResult = null;
         let longVideoChoice;
         let closeModal = null;
 
         function clearRetry() {
             retryState = null;
+            resaveState = null;
         }
 
         function rememberRetry(captureDocument, retry) {
@@ -139,6 +141,12 @@
         async function runResultAction(command) {
             const file = resultFile();
             if (command === "retry") return retry();
+            if (command === "resave") {
+                const pending = resaveState;
+                if (!pending) return false;
+                await pending.resave(pending.captureDocument);
+                return true;
+            }
             if (!file?.history_id) return false;
             if (command === "copy_path") {
                 const response = await sendAction({ action: "capture_result_action", command, id: file.history_id });
@@ -157,6 +165,9 @@
             const view = describeSaveResult(currentResult);
             if (view.state === "failed" && view.retryable) rememberRetry(context.captureDocument, context.retry);
             else clearRetry();
+            if (view.state === "skipped" && context.captureDocument && typeof context.resave === "function") {
+                resaveState = { captureDocument: context.captureDocument, resave: context.resave };
+            }
             const actions = [];
             const file = resultFile();
             if (file?.history_id && view.state !== "failed") {
@@ -165,6 +176,7 @@
                 actions.push({ label: "在 Obsidian 打开", run: () => runResultAction("open_obsidian") });
             }
             if (view.retryable && retryState) actions.push({ label: "重试", run: () => runResultAction("retry") });
+            if (resaveState) actions.push({ label: "再次保存", run: () => runResultAction("resave") });
             showToast(`${view.title}${view.detail ? `\n${view.detail.slice(0, 100)}` : ""}`, view.state, actions.length ? 8000 : 5000, actions);
             return view;
         }

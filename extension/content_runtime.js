@@ -326,6 +326,7 @@
                         ...uiContext,
                         captureDocument: data,
                         retry: () => sendToBackground(data, uiContext),
+                        resave: () => sendToBackground({ ...data, duplicate_policy: "always_new" }, uiContext),
                     });
                     return;
                 }
@@ -343,6 +344,7 @@
                             ...uiContext,
                             captureDocument: resp.payload,
                             retry: () => sendToBackground(resp.payload, uiContext),
+                            resave: () => sendToBackground({ ...resp.payload, duplicate_policy: "always_new" }, uiContext),
                         });
                     });
                     return;
@@ -352,6 +354,7 @@
                     ...uiContext,
                     captureDocument: data,
                     retry: () => sendToBackground(data, uiContext),
+                    resave: () => sendToBackground({ ...data, duplicate_policy: "always_new" }, uiContext),
                 });
             });
         }

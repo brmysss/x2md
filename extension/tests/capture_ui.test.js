@@ -50,6 +50,20 @@ test("non-retryable failures never retain an invalid retry action", () => {
     assert.equal(ui.hasRetry(), false);
 });
 
+test("skipped saves expose a memory-only save-again action", async () => {
+    const ui = createCaptureUi({ document: null, window: null });
+    const document = { content: "body" };
+    let saves = 0;
+
+    ui.showSaveResult({ success: true, outcome: "skipped", files: [{ path: "/vault/a.md" }] }, {
+        captureDocument: document,
+        resave: async (value) => { assert.equal(value, document); saves++; },
+    });
+
+    assert.equal(await ui.runResultAction("resave"), true);
+    assert.equal(saves, 1);
+});
+
 test("success actions emit only action metadata and never the capture payload", async () => {
     const sent = [];
     const copied = [];

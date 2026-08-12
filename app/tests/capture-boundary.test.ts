@@ -24,6 +24,17 @@ test("legacy capture normalization preserves golden markdown", () => {
   }
 });
 
+test("legacy capture normalization preserves an always-new duplicate policy", () => {
+  const normalized = normalizeCaptureRequest({
+    type: "tweet",
+    text: "save again",
+    url: "https://x.com/example/status/1",
+    duplicate_policy: "always_new",
+  });
+
+  assert.equal(normalized.capture.preferences?.duplicate_policy, "always_new");
+});
+
 test("body cap stops a streaming request before complete buffering", async () => {
   let pulls = 0;
   let cancelled = false;

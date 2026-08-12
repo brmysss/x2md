@@ -108,6 +108,7 @@ function fromLegacy(raw: Record<string, any>): CaptureDocumentV1 {
     ...(Object.keys(relations).length ? { relations } : {}),
     preferences: {
       custom_save_path_name: raw.custom_save_path_name,
+      duplicate_policy: raw.duplicate_policy,
       download_images: raw.download_images,
       download_videos: raw.download_video,
     },
@@ -135,6 +136,7 @@ function toLegacy(capture: CaptureDocumentV1): Record<string, any> {
     community_notes: capture.relations?.community_notes,
     link_card: capture.relations?.link_card,
     custom_save_path_name: capture.preferences?.custom_save_path_name,
+    duplicate_policy: capture.preferences?.duplicate_policy,
     download_video: capture.preferences?.download_videos,
   };
 }
