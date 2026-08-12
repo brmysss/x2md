@@ -62,6 +62,8 @@ test("skipped saves expose a memory-only save-again action", async () => {
 
     assert.equal(await ui.runResultAction("resave"), true);
     assert.equal(saves, 1);
+    assert.equal(await ui.runResultAction("resave"), false);
+    assert.equal(saves, 1);
 });
 
 test("success actions emit only action metadata and never the capture payload", async () => {

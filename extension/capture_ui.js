@@ -144,6 +144,7 @@
             if (command === "resave") {
                 const pending = resaveState;
                 if (!pending) return false;
+                resaveState = null;
                 await pending.resave(pending.captureDocument);
                 return true;
             }

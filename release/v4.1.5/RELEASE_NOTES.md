@@ -1,0 +1,17 @@
+# X2MD v4.1.5
+
+X2MD 4.1.5 修复 X Article 正文内引用推文的位置，并允许用户安全地再次保存重复内容。
+
+> 本次 macOS 资产采用已通过本地发行烟测的 Electrobun ad-hoc 签名备用构建；该资产未使用 Developer ID 签名，也未经过 Apple 公证。
+
+## 修复
+
+- 识别 X Article 阅读视图内真实的嵌套推文卡片，并在 Markdown 中保留其正文原始位置。
+- 内容已存在时显示“再次保存”按钮；点击后使用 `always_new` 策略生成新文件。
+- “再次保存”是一次性操作，避免连续点击产生多个意外副本。
+
+## 发行产物
+
+- `X2MD_Mac.zip`（arm64，ad-hoc 签名，未公证）
+- `X2MD_Extension.zip`
+- `X2MD_Windows_Beta.zip`（沿用 4.1.1 Windows Beta 构建；本次修复位于扩展采集与请求链路）
