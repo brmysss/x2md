@@ -829,13 +829,7 @@ async function enrichArticleContentFromStatusApi(data = {}) {
 
         const currentContent = String(data.article_content || data.content || "").trim();
         const apiContent = String(apiArticle.content || "").trim();
-        const currentImageCount = countMarkdownImages(currentContent);
-        const apiImageCount = countMarkdownImages(apiContent);
-        const shouldPreferApi =
-            !currentContent ||
-            (!hasMarkdownCodeFence(currentContent) && hasMarkdownCodeFence(apiContent)) ||
-            apiImageCount > currentImageCount ||
-            apiContent.length > currentContent.length * 1.15;
+        const shouldPreferApi = shouldPreferApiArticleContent(currentContent, apiContent);
 
         const nextContent = shouldPreferApi
             ? apiContent
@@ -854,6 +848,14 @@ async function enrichArticleContentFromStatusApi(data = {}) {
         console.warn("[x2md] Article 接口补全失败，保留当前页面提取结果：", error);
         return data;
     }
+}
+
+function shouldPreferApiArticleContent(currentContent, apiContent) {
+    if (/^>\s*\[!quote\]\s*引用推文/m.test(currentContent)) return false;
+    return !currentContent ||
+        (!hasMarkdownCodeFence(currentContent) && hasMarkdownCodeFence(apiContent)) ||
+        countMarkdownImages(apiContent) > countMarkdownImages(currentContent) ||
+        apiContent.length > currentContent.length * 1.15;
 }
 
 async function resolveCopyContentText(copyData = {}) {
@@ -1127,7 +1129,7 @@ async function enrichCaptureData(input) {
         }
     }
 
-    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet };
+    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent };
     root.X2MDXEnrichment = api;
     if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : self);

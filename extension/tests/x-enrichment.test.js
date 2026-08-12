@@ -5,7 +5,14 @@ const assert = require("node:assert/strict");
 Object.assign(global, require("../media_helpers.js"));
 Object.assign(global, require("../twitter_graphql.js"));
 require("../x-enrichment.js");
-const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet } = global.X2MDXEnrichment;
+const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent } = global.X2MDXEnrichment;
+
+test("article enrichment keeps DOM content when it contains an inline quote", () => {
+    const domContent = "没看过上一篇的，可以从这里进：\n\n> [!quote] 引用推文\n> 上一篇内容\n\n装过1.4的不用重下完整包。";
+    const apiContent = `${"更完整的接口正文。".repeat(80)}\n\n装过1.4的不用重下完整包。`;
+
+    assert.equal(shouldPreferApiArticleContent(domContent, apiContent), false);
+});
 
 test("GraphQL tweet text decodes HTML entities before Markdown rendering", () => {
     const parsed = parseLegacyTweet({
