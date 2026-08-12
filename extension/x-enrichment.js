@@ -828,7 +828,7 @@ async function enrichArticleContentFromStatusApi(data = {}) {
         if (!apiArticle?.content) return data;
 
         const currentContent = String(data.article_content || data.content || "").trim();
-        const apiContent = String(apiArticle.content || "").trim();
+        const apiContent = materializeArticleTweetEntities(String(apiArticle.content || "").trim(), data.quote_tweet);
         const shouldPreferApi = shouldPreferApiArticleContent(currentContent, apiContent);
 
         const nextContent = shouldPreferApi
@@ -851,11 +851,28 @@ async function enrichArticleContentFromStatusApi(data = {}) {
 }
 
 function shouldPreferApiArticleContent(currentContent, apiContent) {
+    if (/^>\s*\[!quote\]\s*引用推文/m.test(apiContent)) return true;
     if (/^>\s*\[!quote\]\s*引用推文/m.test(currentContent)) return false;
     return !currentContent ||
         (!hasMarkdownCodeFence(currentContent) && hasMarkdownCodeFence(apiContent)) ||
         countMarkdownImages(apiContent) > countMarkdownImages(currentContent) ||
         apiContent.length > currentContent.length * 1.15;
+}
+
+function materializeArticleTweetEntities(content, quoteTweet) {
+    const quoteId = String(quoteTweet?.url || "").match(/\/status\/(\d+)/)?.[1] || "";
+    return String(content || "").replace(/\[\[X2MD_TWEET_(\d+)\]\]/g, (placeholder, tweetId) => {
+        if (!quoteTweet || quoteId !== tweetId) return `> [!quote] 引用推文\n> 原文：https://x.com/i/status/${tweetId}`;
+        const lines = ["> [!quote] 引用推文"];
+        for (const line of String(quoteTweet.text || "").split("\n")) {
+            lines.push(line.trim() ? `> ${line}` : ">");
+        }
+        for (const image of Array.isArray(quoteTweet.images) ? quoteTweet.images : []) {
+            lines.push(">", `> ![](${image})`);
+        }
+        lines.push(">", `> 原文：${quoteTweet.url}`);
+        return lines.join("\n");
+    });
 }
 
 async function resolveCopyContentText(copyData = {}) {
@@ -1129,7 +1146,7 @@ async function enrichCaptureData(input) {
         }
     }
 
-    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent };
+    const api = { enrich, orchestrateTweetFallback, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent, materializeArticleTweetEntities };
     root.X2MDXEnrichment = api;
     if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : self);

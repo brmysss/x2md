@@ -5,13 +5,29 @@ const assert = require("node:assert/strict");
 Object.assign(global, require("../media_helpers.js"));
 Object.assign(global, require("../twitter_graphql.js"));
 require("../x-enrichment.js");
-const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent } = global.X2MDXEnrichment;
+const { orchestrateTweetFallback, enrich, formatExpandedUrlMarkdown, applyMentionEntities, parseLegacyTweet, shouldPreferApiArticleContent, materializeArticleTweetEntities } = global.X2MDXEnrichment;
 
 test("article enrichment keeps DOM content when it contains an inline quote", () => {
     const domContent = "没看过上一篇的，可以从这里进：\n\n> [!quote] 引用推文\n> 上一篇内容\n\n装过1.4的不用重下完整包。";
     const apiContent = `${"更完整的接口正文。".repeat(80)}\n\n装过1.4的不用重下完整包。`;
 
     assert.equal(shouldPreferApiArticleContent(domContent, apiContent), false);
+});
+
+test("article enrichment inserts the captured tweet at the GraphQL entity position", () => {
+    const content = "引用之前\n\n[[X2MD_TWEET_2083431662021497274]]\n\n引用之后";
+    const quote = {
+        text: "上一篇内容",
+        images: ["https://pbs.twimg.com/media/quote.jpg?format=jpg&name=orig"],
+        url: "https://x.com/davinci_seven/status/2083431662021497274",
+    };
+
+    const result = materializeArticleTweetEntities(content, quote);
+
+    assert.ok(result.indexOf("引用之前") < result.indexOf("> [!quote] 引用推文"));
+    assert.ok(result.indexOf("> [!quote] 引用推文") < result.indexOf("引用之后"));
+    assert.match(result, /> 上一篇内容/);
+    assert.match(result, /> 原文：https:\/\/x\.com\/davinci_seven\/status\/2083431662021497274/);
 });
 
 test("GraphQL tweet text decodes HTML entities before Markdown rendering", () => {

@@ -412,6 +412,9 @@
         const type = String(entity?.type || "").toUpperCase();
         const data = entity?.data || {};
         if (type === "DIVIDER") return "---";
+        if (type === "TWEET" && /^\d+$/.test(String(data.tweetId || ""))) {
+            return `[[X2MD_TWEET_${data.tweetId}]]`;
+        }
         if (type === "MARKDOWN" || typeof data.markdown === "string") {
             return cleanArticleMarkdownText(data.markdown);
         }

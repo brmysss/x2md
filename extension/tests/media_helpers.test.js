@@ -253,6 +253,22 @@ test("extractArticleMarkdownFromGraphQL converts X article rich content and medi
   ]);
 });
 
+test("extractArticleMarkdownFromGraphQL keeps tweet entities at their exact block position", () => {
+  const article = extractArticleMarkdownFromGraphQL({ article: { article_results: { result: {
+    title: "Quoted article",
+    content_state: {
+      blocks: [
+        { key: "a", type: "unstyled", text: "引用之前" },
+        { key: "b", type: "atomic", text: " ", entityRanges: [{ key: 0, offset: 0, length: 1 }] },
+        { key: "c", type: "unstyled", text: "引用之后" },
+      ],
+      entityMap: [{ key: "0", value: { type: "TWEET", data: { tweetId: "2083431662021497274" } } }],
+    },
+  } } } });
+
+  assert.equal(article.content, "引用之前\n\n[[X2MD_TWEET_2083431662021497274]]\n\n引用之后");
+});
+
 test("extractArticleMarkdownFromGraphQL keeps atomic code block entities", () => {
   const result = {
     article: {
