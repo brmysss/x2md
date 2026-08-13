@@ -6,8 +6,8 @@ import { readJsonStateSync, writeJsonStateSync } from "./state-store.ts";
 import { allowlistedConfig, safePublicConfig } from "./config-schema.ts";
 import { CONFIG_VERSION, migrateConfig } from "./config-migrations.ts";
 
-export const VERSION = "4.2.0";
-export const MIN_EXTENSION_VERSION = "4.2.0";
+export const VERSION = "4.2.1";
+export const MIN_EXTENSION_VERSION = "4.2.1";
 export const LOCAL_API_PORT = 9527;
 
 export type X2MDConfig = Record<string, unknown> & {
