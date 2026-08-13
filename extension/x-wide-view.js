@@ -16,27 +16,6 @@
         }
     }
 
-    function markSingleMedia() {
-        document.querySelectorAll('article[data-testid="tweet"]').forEach((tweet) => {
-            tweet.querySelectorAll(".x2md-single-photo, .x2md-single-video").forEach((media) => {
-                media.classList.remove("x2md-single-photo", "x2md-single-video");
-            });
-            if (tweet.querySelector('[data-testid="ScrollSnap-List"]')) return;
-            const player = tweet.querySelector('[data-testid="videoPlayer"], [data-testid="videoComponent"], video');
-            const photos = tweet.querySelectorAll('[data-testid="tweetPhoto"]');
-            if (!player && photos.length !== 1) return;
-            const mediaBox = player
-                ? player.closest('[data-testid="tweetPhoto"]')?.parentElement?.parentElement
-                    || player.closest('[data-testid="videoComponent"]')?.parentElement
-                    || player.parentElement?.parentElement
-                : photos[0].parentElement?.parentElement;
-            if (!mediaBox || mediaBox === tweet) return;
-            mediaBox.classList.add(player
-                ? "x2md-single-video"
-                : "x2md-single-photo");
-        });
-    }
-
     function mountButton() {
         if (document.getElementById(BUTTON_ID) || !document.querySelector('[data-testid="primaryColumn"]')) return;
         const button = document.createElement("button");
@@ -54,7 +33,6 @@
 
     function refresh() {
         mountButton();
-        markSingleMedia();
     }
 
     chrome.storage.local.get({ [STORAGE_KEY]: true }, (result) => {

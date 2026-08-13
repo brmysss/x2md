@@ -49,9 +49,14 @@ html.x2md-wide-view #__x2md_wide_view_toggle {
     html.x2md-wide-view main > div:has([data-testid="primaryColumn"]),
     html.x2md-wide-view main > div > div:has(> [data-testid="primaryColumn"]),
     html.x2md-wide-view [data-testid="primaryColumn"] {
-        width: min(1050px, calc(100vw - 420px)) !important;
-        max-width: min(1050px, calc(100vw - 420px)) !important;
-        flex-basis: min(1050px, calc(100vw - 420px)) !important;
+        width: min(900px, calc(100vw - 420px)) !important;
+        max-width: min(900px, calc(100vw - 420px)) !important;
+        flex-basis: min(900px, calc(100vw - 420px)) !important;
+    }
+
+    html.x2md-wide-view [data-testid="primaryColumn"] div:has(> section[role="region"]) {
+        width: 100% !important;
+        max-width: none !important;
     }
 
     html.x2md-wide-view [data-testid="primaryColumn"] [data-testid="cellInnerDiv"]:has(article[data-testid="tweet"]),
@@ -88,41 +93,6 @@ html.x2md-wide-view #__x2md_wide_view_toggle {
         width: 100% !important;
         height: var(--tweet-media-carousel-item-height, 275px) !important;
         aspect-ratio: auto !important;
-    }
-
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-photo {
-        width: min(760px, 100%) !important;
-        height: min(560px, 70vh) !important;
-        align-self: flex-start !important;
-    }
-
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-photo > div,
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-photo [data-testid="tweetPhoto"] {
-        width: 100% !important;
-        height: 100% !important;
-        max-height: min(560px, 70vh) !important;
-    }
-
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-photo img {
-        object-fit: contain !important;
-    }
-
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-video {
-        width: min(900px, 100%) !important;
-        height: min(506px, 65vh) !important;
-        align-self: flex-start !important;
-    }
-
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-video > div,
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-video [data-testid="tweetPhoto"],
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-video [data-testid="videoPlayer"] {
-        width: 100% !important;
-        height: 100% !important;
-        max-height: min(506px, 65vh) !important;
-    }
-
-    html.x2md-wide-view article[data-testid="tweet"] .x2md-single-video video {
-        object-fit: contain !important;
     }
 
     html.x2md-wide-view article[data-testid="tweet"] [data-testid="card.wrapper"] {

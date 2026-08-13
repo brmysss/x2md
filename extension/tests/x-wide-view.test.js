@@ -16,7 +16,8 @@ test("X content script loads the desktop wide-view stylesheet", () => {
 
 test("wide view is class-gated and expands only tweet cells", () => {
     assert.match(css, /html\.x2md-wide-view \[data-testid="sidebarColumn"\][\s\S]*display:\s*none\s*!important/);
-    assert.match(css, /html\.x2md-wide-view \[data-testid="primaryColumn"\][\s\S]*max-width:\s*min\(1050px, calc\(100vw - 420px\)\)\s*!important/);
+    assert.match(css, /html\.x2md-wide-view \[data-testid="primaryColumn"\][\s\S]*max-width:\s*min\(900px, calc\(100vw - 420px\)\)\s*!important/);
+    assert.match(css, /div:has\(> section\[role="region"\]\)[\s\S]*max-width:\s*none\s*!important/);
     assert.match(css, /cellInnerDiv[^\n]*:has\(article\[data-testid="tweet"\]\)/);
     assert.doesNotMatch(css, /\[data-testid="primaryColumn"\] section/);
     assert.match(css, /article\[data-testid="tweet"\][\s\S]*width:\s*100%\s*!important/);
@@ -29,16 +30,9 @@ test("four-image carousels become a complete four-column row", () => {
     assert.match(css, /overflow:\s*visible\s*!important/);
 });
 
-test("single media is compact and the page toggle persists its state", () => {
-    assert.match(css, /\.x2md-single-photo[\s\S]*width:\s*min\(760px, 100%\)\s*!important/);
-    assert.match(css, /\.x2md-single-photo[\s\S]*height:\s*min\(560px, 70vh\)\s*!important/);
-    assert.match(css, /\.x2md-single-video[\s\S]*width:\s*min\(900px, 100%\)\s*!important/);
-    assert.match(css, /\.x2md-single-video[\s\S]*height:\s*min\(506px, 65vh\)\s*!important/);
-    assert.match(script, /x2md-single-video/);
-    assert.match(script, /x2md-single-photo/);
-    assert.match(script, /videoComponent/);
-    assert.match(script, /if \(!player && photos\.length !== 1\) return/);
-    assert.match(script, /querySelectorAll\("\.x2md-single-photo, \.x2md-single-video"\)/);
+test("wide view leaves native single-media geometry intact and persists its state", () => {
+    assert.doesNotMatch(css, /x2md-single-(?:photo|video)/);
+    assert.doesNotMatch(script, /x2md-single-(?:photo|video)/);
     assert.match(script, /x2md_x_wide_view_enabled/);
     assert.match(script, /twitter/);
     assert.match(script, /location\.hostname/);
