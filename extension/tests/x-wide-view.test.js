@@ -36,6 +36,9 @@ test("single media is compact and the page toggle persists its state", () => {
     assert.match(css, /\.x2md-single-video[\s\S]*height:\s*min\(506px, 65vh\)\s*!important/);
     assert.match(script, /x2md-single-video/);
     assert.match(script, /x2md-single-photo/);
+    assert.match(script, /videoComponent/);
+    assert.match(script, /if \(!player && photos\.length !== 1\) return/);
+    assert.match(script, /querySelectorAll\("\.x2md-single-photo, \.x2md-single-video"\)/);
     assert.match(script, /x2md_x_wide_view_enabled/);
     assert.match(script, /twitter/);
     assert.match(script, /location\.hostname/);
