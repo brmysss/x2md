@@ -25,10 +25,19 @@ test("wide view is class-gated and expands only tweet cells", () => {
     assert.match(css, /nav \[role="tablist"\]\[data-testid="ScrollSnap-List"\][\s\S]*display:\s*flex\s*!important/);
 });
 
-test("four-image carousels become a complete four-column row", () => {
-    assert.match(css, /article\[data-testid="tweet"\][^\n]*ScrollSnap-List[^\n]*:has\(> :nth-child\(4\)\)/);
-    assert.match(css, /grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)\s*!important/);
+test("two-to-four image carousels scale into compact complete rows", () => {
+    assert.match(css, /ScrollSnap-List[^\n]*:has\(> :nth-child\(2\)\):not\(:has\([^\n]*(?:videoPlayer|videoComponent|video)[^\n]*\)\)/);
+    assert.match(css, /grid-template-columns:\s*repeat\(var\(--tweet-media-carousel-columns\), minmax\(0, 1fr\)\)\s*!important/);
     assert.match(css, /overflow:\s*visible\s*!important/);
+    assert.match(css, /:nth-child\(2\)[^\n]*[\s\S]*--tweet-media-carousel-columns:\s*2;[\s\S]*--tweet-media-carousel-item-height:\s*420px/);
+    assert.match(css, /:nth-child\(3\)[^\n]*[\s\S]*--tweet-media-carousel-columns:\s*3;[\s\S]*--tweet-media-carousel-item-height:\s*340px/);
+    assert.match(css, /:nth-child\(4\)[^\n]*[\s\S]*--tweet-media-carousel-columns:\s*4;[\s\S]*--tweet-media-carousel-item-height:\s*275px/);
+    assert.match(css, /div:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(2\)\):not\(:has\([^\n]*(?:videoPlayer|videoComponent|video)[^\n]*\)\)[\s\S]*padding-bottom:\s*420px\s*!important/);
+    assert.doesNotMatch(css, /div:has\([^)]*:has\(/);
+});
+
+test("top navigation sizing never targets tweet media tablists", () => {
+    assert.match(css, /ScrollSnap-List"\]:not\(article\[data-testid="tweet"\] \*\)/);
 });
 
 test("wide view leaves native single-media geometry intact and persists its state", () => {
