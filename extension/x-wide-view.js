@@ -8,11 +8,15 @@
     const BUTTON_ID = "__x2md_wide_view_toggle";
 
     function setEnabled(enabled) {
+        const layoutChanged = document.documentElement.classList.contains(ROOT_CLASS) !== enabled;
         document.documentElement.classList.toggle(ROOT_CLASS, enabled);
         const button = document.getElementById(BUTTON_ID);
         if (button) {
             button.setAttribute("aria-pressed", String(enabled));
             button.title = enabled ? "关闭 X2MD 宽屏模式" : "开启 X2MD 宽屏模式";
+        }
+        if (layoutChanged) {
+            requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
         }
     }
 

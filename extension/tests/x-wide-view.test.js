@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const extensionRoot = path.join(__dirname, "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(extensionRoot, "manifest.json"), "utf8"));
@@ -40,4 +41,56 @@ test("wide view leaves native single-media geometry intact and persists its stat
     assert.match(script, /aria-pressed/);
     assert.match(script, /MutationObserver/);
     assert.match(script, /requestAnimationFrame/);
+});
+
+test("wide view asks X to remeasure media after each layout mode change", () => {
+    const rootClasses = new Set();
+    let mountedButton = null;
+    let resizeEvents = 0;
+    const button = {
+        addEventListener(type, listener) {
+            if (type === "click") this.click = listener;
+        },
+        setAttribute() {},
+    };
+    const document = {
+        body: { appendChild(node) { mountedButton = node; } },
+        createElement() { return button; },
+        documentElement: {
+            classList: {
+                contains(name) { return rootClasses.has(name); },
+                toggle(name, enabled) {
+                    if (enabled) rootClasses.add(name);
+                    else rootClasses.delete(name);
+                },
+            },
+        },
+        getElementById() { return mountedButton; },
+        querySelector() { return {}; },
+    };
+
+    vm.runInNewContext(script, {
+        chrome: {
+            storage: {
+                local: {
+                    get(_defaults, callback) { callback({ x2md_x_wide_view_enabled: true }); },
+                    set() {},
+                },
+            },
+        },
+        document,
+        Event: class Event { constructor(type) { this.type = type; } },
+        location: { hostname: "x.com" },
+        MutationObserver: class MutationObserver { observe() {} },
+        requestAnimationFrame(callback) { callback(); },
+        window: {
+            dispatchEvent(event) {
+                if (event.type === "resize") resizeEvents += 1;
+            },
+        },
+    });
+
+    assert.equal(resizeEvents, 1, "enabling wide view must invalidate X's stale media measurements");
+    button.click();
+    assert.equal(resizeEvents, 2, "returning to narrow view must also remeasure media");
 });
