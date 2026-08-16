@@ -40,6 +40,12 @@ test("two-video carousels replace X's stale aspect-ratio spacer", () => {
     assert.match(css, /div:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(2\)\)[\s\S]*:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(1\)[\s\S]*video[\s\S]*:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(2\)[\s\S]*video[\s\S]*padding-bottom:\s*420px\s*!important/);
 });
 
+test("three-item mixed video carousels use one compact row", () => {
+    assert.match(css, /ScrollSnap-List"\]:has\(> :nth-child\(3\)\):not\(:has\(> :nth-child\(4\)\)\):has\(video\)/);
+    assert.match(css, /--tweet-media-carousel-columns:\s*3;[\s\S]*grid-template-columns:\s*repeat\(var\(--tweet-media-carousel-columns\), minmax\(0, 1fr\)\) !important/);
+    assert.match(css, /div:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(3\)\):not\(:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(4\)\)\):has\(> nav \[data-testid="ScrollSnap-List"\] video\)[\s\S]*padding-bottom:\s*420px\s*!important/);
+});
+
 test("top navigation sizing never targets tweet media tablists", () => {
     assert.match(css, /ScrollSnap-List"\]:not\(article\[data-testid="tweet"\] \*\)/);
 });

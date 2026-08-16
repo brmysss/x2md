@@ -96,6 +96,18 @@ html.x2md-wide-view #__x2md_wide_view_toggle {
         --tweet-media-carousel-item-height: 275px;
     }
 
+    html.x2md-wide-view article[data-testid="tweet"] [data-testid="ScrollSnap-List"]:has(> :nth-child(3)):not(:has(> :nth-child(4))):has(video) {
+        --tweet-media-carousel-columns: 3;
+        --tweet-media-carousel-item-height: 420px;
+        display: grid !important;
+        grid-template-columns: repeat(var(--tweet-media-carousel-columns), minmax(0, 1fr)) !important;
+        gap: 10px !important;
+        overflow: visible !important;
+        margin-right: 0 !important;
+        padding-right: 0 !important;
+        scroll-padding: 0 !important;
+    }
+
     html.x2md-wide-view article[data-testid="tweet"] div:has(> nav [data-testid="ScrollSnap-List"] > :nth-child(2)):not(:has(> nav [data-testid="ScrollSnap-List"] [data-testid="videoPlayer"], > nav [data-testid="ScrollSnap-List"] [data-testid="videoComponent"], > nav [data-testid="ScrollSnap-List"] video)) {
         padding-bottom: 420px !important;
     }
@@ -112,12 +124,27 @@ html.x2md-wide-view #__x2md_wide_view_toggle {
         padding-bottom: 420px !important;
     }
 
+    html.x2md-wide-view article[data-testid="tweet"] div:has(> nav [data-testid="ScrollSnap-List"] > :nth-child(3)):not(:has(> nav [data-testid="ScrollSnap-List"] > :nth-child(4))):has(> nav [data-testid="ScrollSnap-List"] video) {
+        padding-bottom: 420px !important;
+    }
+
     html.x2md-wide-view article[data-testid="tweet"] [data-testid="ScrollSnap-List"]:has(> :nth-child(2)):not(:has([data-testid="videoPlayer"], [data-testid="videoComponent"], video)) > [role="presentation"] {
         width: auto !important;
         min-width: 0 !important;
     }
 
     html.x2md-wide-view article[data-testid="tweet"] [data-testid="ScrollSnap-List"]:has(> :nth-child(2)):not(:has([data-testid="videoPlayer"], [data-testid="videoComponent"], video)) > [role="presentation"] > div {
+        width: 100% !important;
+        height: var(--tweet-media-carousel-item-height) !important;
+        aspect-ratio: auto !important;
+    }
+
+    html.x2md-wide-view article[data-testid="tweet"] [data-testid="ScrollSnap-List"]:has(> :nth-child(3)):not(:has(> :nth-child(4))):has(video) > [role="presentation"] {
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    html.x2md-wide-view article[data-testid="tweet"] [data-testid="ScrollSnap-List"]:has(> :nth-child(3)):not(:has(> :nth-child(4))):has(video) > [role="presentation"] > div {
         width: 100% !important;
         height: var(--tweet-media-carousel-item-height) !important;
         aspect-ratio: auto !important;
