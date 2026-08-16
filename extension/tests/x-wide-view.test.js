@@ -36,6 +36,10 @@ test("two-to-four image carousels scale into compact complete rows", () => {
     assert.doesNotMatch(css, /div:has\([^)]*:has\(/);
 });
 
+test("two-video carousels replace X's stale aspect-ratio spacer", () => {
+    assert.match(css, /div:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(2\)\)[\s\S]*:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(1\)[\s\S]*video[\s\S]*:has\(> nav \[data-testid="ScrollSnap-List"\] > :nth-child\(2\)[\s\S]*video[\s\S]*padding-bottom:\s*420px\s*!important/);
+});
+
 test("top navigation sizing never targets tweet media tablists", () => {
     assert.match(css, /ScrollSnap-List"\]:not\(article\[data-testid="tweet"\] \*\)/);
 });

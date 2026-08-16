@@ -108,6 +108,10 @@ html.x2md-wide-view #__x2md_wide_view_toggle {
         padding-bottom: 275px !important;
     }
 
+    html.x2md-wide-view article[data-testid="tweet"] div:has(> nav [data-testid="ScrollSnap-List"] > :nth-child(2)):not(:has(> nav [data-testid="ScrollSnap-List"] > :nth-child(3))):has(> nav [data-testid="ScrollSnap-List"] > :nth-child(1) video, > nav [data-testid="ScrollSnap-List"] > :nth-child(1) [data-testid="videoPlayer"], > nav [data-testid="ScrollSnap-List"] > :nth-child(1) [data-testid="videoComponent"]):has(> nav [data-testid="ScrollSnap-List"] > :nth-child(2) video, > nav [data-testid="ScrollSnap-List"] > :nth-child(2) [data-testid="videoPlayer"], > nav [data-testid="ScrollSnap-List"] > :nth-child(2) [data-testid="videoComponent"]) {
+        padding-bottom: 420px !important;
+    }
+
     html.x2md-wide-view article[data-testid="tweet"] [data-testid="ScrollSnap-List"]:has(> :nth-child(2)):not(:has([data-testid="videoPlayer"], [data-testid="videoComponent"], video)) > [role="presentation"] {
         width: auto !important;
         min-width: 0 !important;
