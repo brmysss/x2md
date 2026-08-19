@@ -139,14 +139,22 @@ function escapeHtmlAttribute(value: string): string {
 
 function appendTweetImageRow(lines: string[], images: string[], altMap: unknown): void {
   const width = `${Math.round(100000 / images.length) / 1000}%`;
+  const altTexts: Array<{ index: number; text: string }> = [];
   lines.push('<div style="display: flex; gap: 8px;">');
-  for (const image of images) {
+  for (const [index, image] of images.entries()) {
     const normalizedUrl = normalizeImageUrl(image);
     const url = escapeHtmlAttribute(normalizedUrl);
-    const alt = escapeHtmlAttribute(getImageAltText(normalizedUrl, altMap));
+    const altText = getImageAltText(normalizedUrl, altMap);
+    const alt = escapeHtmlAttribute(altText);
+    if (altText) altTexts.push({ index, text: altText });
     lines.push(`<img src="${url}"${alt ? ` alt="${alt}"` : ""} style="flex: 1; min-width: 0; max-width: ${width}; object-fit: cover;" />`);
   }
   lines.push("</div>");
+  for (const { index, text } of altTexts) {
+    lines.push("");
+    lines.push(`**图片 ${index + 1} ALT：**`);
+    appendAltFence(lines, text);
+  }
 }
 
 function formatPollOption(option: Record<string, any>): string {

@@ -18,10 +18,18 @@ function normalizeImageUrl(url) {
 }
 
 function getMeaningfulAltText(img) {
-    const alt = (img?.alt || img?.getAttribute?.("alt") || "").replace(/\s+/g, " ").trim();
-    if (!alt) return "";
-    if (typeof isMeaningfulImageAlt === "function" && !isMeaningfulImageAlt(alt)) return "";
-    return alt;
+    const candidates = [
+        img?.alt,
+        img?.getAttribute?.("alt"),
+        img?.closest?.('[data-testid="tweetPhoto"]')?.getAttribute?.("aria-label"),
+    ];
+    for (const value of candidates) {
+        const alt = String(value || "").replace(/\s+/g, " ").trim();
+        if (!alt) continue;
+        if (typeof isMeaningfulImageAlt === "function" && !isMeaningfulImageAlt(alt)) continue;
+        return alt;
+    }
+    return "";
 }
 
 function collectImageAltText(map, rawUrl, img) {
