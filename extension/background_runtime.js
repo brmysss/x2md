@@ -660,10 +660,239 @@
             }
         }
 
+        function isAllowedAudioReplayUrl(value) {
+            try {
+                const url = new URL(String(value || ""));
+                return url.protocol === "https:" && url.hostname.endsWith(".video.pscp.tv") && !url.username && !url.password;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function startBrowserDownload(options) {
+            return new Promise((resolve, reject) => {
+                chrome.downloads.download({ saveAs: false, conflictAction: "uniquify", ...options }, (id) => {
+                    const runtimeError = chrome.runtime.lastError;
+                    if (runtimeError) reject(new Error(runtimeError.message));
+                    else resolve(id);
+                });
+            });
+        }
+
+        let offscreenCreating = null;
+        async function ensureOffscreenDocument() {
+            if (await chrome.offscreen.hasDocument()) return;
+            if (!offscreenCreating) {
+                offscreenCreating = chrome.offscreen.createDocument({
+                    url: "offscreen.html",
+                    reasons: ["BLOBS"],
+                    justification: "将 X Audio Space 的 HLS 音频分片合并为可下载文件",
+                }).finally(() => { offscreenCreating = null; });
+            }
+            await offscreenCreating;
+        }
+
+        function sendOffscreenMessage(message) {
+            return new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({ target: "offscreen", ...message }, (response) => {
+                    const runtimeError = chrome.runtime.lastError;
+                    if (runtimeError) reject(new Error(runtimeError.message));
+                    else if (!response?.success) reject(new Error(response?.error || "录音处理失败"));
+                    else resolve(response);
+                });
+            });
+        }
+
+        function cleanVttSegments(segments) {
+            const cues = segments.map((segment) => {
+                const text = String(segment || "").replace(/^\uFEFF/, "");
+                const cue = text.search(/(?:\d{2}:)?\d{2}:\d{2}\.\d{3}\s+-->/);
+                return cue >= 0 ? text.slice(cue).trim() : "";
+            }).filter(Boolean);
+            return cues.length ? `WEBVTT\n\n${cues.join("\n\n")}` : "";
+        }
+
+        async function downloadSubtitles(masterUrl, text) {
+            const masterUrls = Array.isArray(masterUrl) ? masterUrl : [masterUrl];
+            const candidate = masterUrls.find((url) => isAllowedVideoUrl(url));
+            if (!candidate) return { subtitle_found: false };
+            const subtitleMasterUrl = new URL(candidate);
+            subtitleMasterUrl.searchParams.set("variant_version", "1");
+            const masterResponse = await fetch(subtitleMasterUrl);
+            if (!masterResponse.ok) throw new Error(`字幕清单请求失败：${masterResponse.status}`);
+            const master = await masterResponse.text();
+            const mediaLine = master.split(/\r?\n/).find((line) => line.includes("TYPE=SUBTITLES"));
+            const relative = mediaLine?.match(/(?:^|,)URI="([^"]+)"/)?.[1] || "";
+            if (!relative) return { subtitle_found: false };
+
+            const playlistUrl = new URL(relative, subtitleMasterUrl);
+            if (!isAllowedVideoUrl(playlistUrl.href)) throw new Error("字幕地址无效");
+            const playlistResponse = await fetch(playlistUrl);
+            if (!playlistResponse.ok) throw new Error(`字幕分片清单请求失败：${playlistResponse.status}`);
+            const playlist = await playlistResponse.text();
+            const segmentUrls = playlist.split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line && !line.startsWith("#"))
+                .map((line) => new URL(line, playlistUrl).href);
+            if (!segmentUrls.length || segmentUrls.some((url) => !isAllowedVideoUrl(url))) return { subtitle_found: false };
+            const segments = await Promise.all(segmentUrls.map(async (url) => {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`字幕分片请求失败：${response.status}`);
+                return response.text();
+            }));
+            const vtt = cleanVttSegments(segments);
+            if (!vtt) return { subtitle_found: false };
+            const filename = buildSubtitleDownloadFilename(text);
+            const downloadId = await startBrowserDownload({
+                url: `data:text/vtt;charset=utf-8,${encodeURIComponent(vtt)}`,
+                filename,
+            });
+            return { subtitle_found: true, subtitle_filename: filename, subtitle_download_id: downloadId };
+        }
+
+        async function fetchAudioSpaceReplay(data) {
+            const spaceId = String(data.space_id || "").trim();
+            if (!/^[A-Za-z0-9_-]{8,64}$/.test(spaceId)) throw new Error("未找到录音 Space ID");
+            const csrfToken = await getCookieValue("ct0");
+            if (!csrfToken) throw new Error("需要登录 X 后重试");
+            const headers = {
+                "Authorization": `Bearer ${TWITTER_BEARER_TOKEN}`,
+                "X-Csrf-Token": csrfToken,
+                "x-twitter-active-user": "yes",
+                "x-twitter-client-language": "zh-cn",
+            };
+            const variables = { id: spaceId, isMetatagsQuery: false, withReplays: true, withListeners: true };
+            const features = {
+                spaces_2022_h2_spaces_communities: true,
+                spaces_2022_h2_clipping: true,
+                creator_subscriptions_tweet_preview_api_enabled: true,
+                profile_label_improvements_pcf_label_in_post_enabled: true,
+                responsive_web_profile_redirect_enabled: true,
+                rweb_tipjar_consumption_enabled: false,
+                verified_phone_label_enabled: false,
+                premium_content_api_read_enabled: false,
+                communities_web_enable_tweet_community_results_fetch: true,
+                c9s_tweet_anatomy_moderator_badge_enabled: true,
+                responsive_web_grok_analyze_button_fetch_trends_enabled: false,
+                responsive_web_grok_analyze_post_followups_enabled: true,
+                rweb_cashtags_composer_attachment_enabled: true,
+                responsive_web_jetfuel_frame: true,
+                responsive_web_grok_share_attachment_enabled: true,
+                responsive_web_grok_annotations_enabled: true,
+                articles_preview_enabled: true,
+                responsive_web_edit_tweet_api_enabled: true,
+                rweb_conversational_replies_downvote_enabled: false,
+                graphql_is_translatable_rweb_tweet_is_translatable_enabled: true,
+                view_counts_everywhere_api_enabled: true,
+                longform_notetweets_consumption_enabled: true,
+                responsive_web_twitter_article_tweet_consumption_enabled: true,
+                content_disclosure_indicator_enabled: true,
+                content_disclosure_ai_generated_indicator_enabled: true,
+                responsive_web_grok_show_grok_translated_post: true,
+                responsive_web_grok_analysis_button_from_backend: true,
+                post_ctas_fetch_enabled: false,
+                rweb_cashtags_enabled: true,
+                freedom_of_speech_not_reach_fetch_enabled: true,
+                standardized_nudges_misinfo: true,
+                tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled: true,
+                longform_notetweets_rich_text_read_enabled: true,
+                longform_notetweets_inline_media_enabled: false,
+                responsive_web_grok_image_annotation_enabled: true,
+                responsive_web_grok_imagine_annotation_enabled: true,
+                responsive_web_graphql_timeline_navigation_enabled: true,
+                responsive_web_grok_community_note_auto_translation_is_enabled: true,
+            };
+            const operationIds = Array.from(new Set([
+                String(data.audio_space_operation_id || "").trim(),
+                "Bh0L6azTQoMs9rJKeCF4wQ",
+            ].filter(Boolean)));
+            let metadata = null;
+            for (const operationId of operationIds) {
+                const params = new URLSearchParams({ variables: JSON.stringify(variables), features: JSON.stringify(features) });
+                const response = await fetch(`https://x.com/i/api/graphql/${operationId}/AudioSpaceById?${params}`, { credentials: "include", headers });
+                if (!response.ok) continue;
+                metadata = (await response.json())?.data?.audioSpace?.metadata || null;
+                if (metadata?.media_key) break;
+            }
+            if (!metadata?.media_key) throw new Error("未找到可回放的录音");
+            const statusUrl = `https://x.com/i/api/1.1/live_video_stream/status/${encodeURIComponent(metadata.media_key)}?client=web&use_syndication_guest_id=false&cookie_set_host=x.com`;
+            const statusResponse = await fetch(statusUrl, { credentials: "include", headers });
+            if (!statusResponse.ok) throw new Error(`录音回放地址请求失败：${statusResponse.status}`);
+            const replayUrl = String((await statusResponse.json())?.source?.location || "");
+            if (!isAllowedAudioReplayUrl(replayUrl)) throw new Error("录音回放地址无效");
+            return { replayUrl, title: String(metadata.title || data.text || "") };
+        }
+
+        async function downloadAudioSpaceSubtitles(replayUrl, title) {
+            const masterResponse = await fetch(replayUrl);
+            if (!masterResponse.ok) throw new Error(`字幕清单请求失败：${masterResponse.status}`);
+            const master = await masterResponse.text();
+            const mediaLine = master.split(/\r?\n/).find((line) => line.includes("TYPE=SUBTITLES"));
+            const relative = mediaLine?.match(/(?:^|,)URI="([^"]+)"/)?.[1] || "";
+            if (!relative) return { subtitle_found: false };
+
+            const playlistUrl = new URL(relative, replayUrl);
+            if (!isAllowedAudioReplayUrl(playlistUrl.href)) throw new Error("字幕地址无效");
+            const playlistResponse = await fetch(playlistUrl);
+            if (!playlistResponse.ok) throw new Error(`字幕分片清单请求失败：${playlistResponse.status}`);
+            const playlist = await playlistResponse.text();
+            const segmentUrls = playlist.split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line && !line.startsWith("#"))
+                .map((line) => new URL(line, playlistUrl).href);
+            if (!segmentUrls.length || segmentUrls.some((url) => !isAllowedAudioReplayUrl(url))) return { subtitle_found: false };
+            const segments = await Promise.all(segmentUrls.map(async (url) => {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`字幕分片请求失败：${response.status}`);
+                return response.text();
+            }));
+            const vtt = cleanVttSegments(segments);
+            if (!vtt) return { subtitle_found: false };
+            const filename = buildSubtitleDownloadFilename(title);
+            const downloadId = await startBrowserDownload({
+                url: `data:text/vtt;charset=utf-8,${encodeURIComponent(vtt)}`,
+                filename,
+            });
+            return { subtitle_found: true, subtitle_filename: filename, subtitle_download_id: downloadId };
+        }
+
+        async function downloadAudioSpace(data = {}, sender = {}) {
+            if (sender?.id && chrome.runtime.id && sender.id !== chrome.runtime.id) throw new Error("下载请求来源无效");
+            if (!isAllowedTwitterUrl(sender?.tab?.url)) throw new Error("下载请求来源无效");
+            if (data.tweet_url && !isAllowedTwitterUrl(data.tweet_url)) throw new Error("推文地址无效");
+            let audioData = data;
+            if (!audioData.space_id && audioData.tweet_url) {
+                const enriched = await xEnrichment.enrich("tweet", { url: audioData.tweet_url });
+                audioData = {
+                    ...audioData,
+                    space_id: enriched?.audio_space_id || "",
+                    text: audioData.text || enriched?.text || "",
+                };
+            }
+            const { replayUrl, title } = await fetchAudioSpaceReplay(audioData);
+            const filename = buildAudioDownloadFilename(title || data.text || "");
+            if (data.include_subtitles) {
+                const subtitle = await downloadAudioSpaceSubtitles(replayUrl, title || data.text || "");
+                return { success: true, filename, ...subtitle };
+            }
+            await ensureOffscreenDocument();
+            await sendOffscreenMessage({ action: "download_hls_audio", url: replayUrl, filename });
+            return { success: true, queued: true, filename, subtitle_found: false };
+        }
+
         async function downloadVideo(data = {}, sender = {}) {
             if (sender?.id && chrome.runtime.id && sender.id !== chrome.runtime.id) throw new Error("下载请求来源无效");
             if (!isAllowedTwitterUrl(sender?.tab?.url)) throw new Error("下载请求来源无效");
             if (data.tweet_url && !isAllowedTwitterUrl(data.tweet_url)) throw new Error("推文地址无效");
+
+            if (data.include_subtitles) {
+                const enriched = data.tweet_url ? await xEnrichment.enrich("tweet", { url: data.tweet_url }) : data;
+                const subtitle = await downloadSubtitles([
+                    ...(enriched?.hls_playlists || []),
+                    data.hls_playlist,
+                ], data.text || enriched.text || "");
+                return { success: true, ...subtitle };
+            }
 
             let source = String(data.video_url || "").trim();
             let enriched = data;
@@ -676,19 +905,8 @@
             }
 
             const filename = buildVideoDownloadFilename(data.text || enriched.text || "");
-            const downloadId = await new Promise((resolve, reject) => {
-                chrome.downloads.download({
-                    url: source,
-                    filename,
-                    saveAs: false,
-                    conflictAction: "uniquify",
-                }, (id) => {
-                    const runtimeError = chrome.runtime.lastError;
-                    if (runtimeError) reject(new Error(runtimeError.message));
-                    else resolve(id);
-                });
-            });
-            return { success: true, downloadId, filename };
+            const downloadId = await startBrowserDownload({ url: source, filename });
+            return { success: true, downloadId, filename, subtitle_found: false };
         }
 
         let jobClient;
@@ -697,6 +915,7 @@
             enrich: (mode, data) => xEnrichment.enrich(mode, data),
             save: saveCapturePayload,
             downloadVideo,
+            downloadAudioSpace,
             applyCustomSavePath: applyCustomSavePathSelection,
             applyTranslationOverride: applyTranslationOverrideToData,
             translateTweet: fetchGrokTranslation,
@@ -741,6 +960,7 @@
         jobClient.kick();
 
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if (message?.target === "offscreen") return false;
             dispatchMessage(message, sender).then(sendResponse);
             return true;
         });

@@ -39,5 +39,13 @@
         return `${cleanFilenameStem(text, fallback)}.mp4`;
     }
 
-    return { buildVideoDownloadFilename, cleanFilenameStem };
+    function buildAudioDownloadFilename(text, fallback = "x2md-audio") {
+        return `${cleanFilenameStem(text, fallback)}.aac`;
+    }
+
+    function buildSubtitleDownloadFilename(text, fallback = "x2md-video") {
+        return `${cleanFilenameStem(text, fallback)}.vtt`;
+    }
+
+    return { buildVideoDownloadFilename, buildAudioDownloadFilename, buildSubtitleDownloadFilename, cleanFilenameStem };
 });

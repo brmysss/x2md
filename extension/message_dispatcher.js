@@ -94,6 +94,7 @@
             save_tweet: (message) => captureAndSave(message, deps),
             force_save_tweet: (message) => deps.save(deps.applyTranslationOverride(message.data || {})),
             download_video: (message, sender) => deps.downloadVideo(message.data || {}, sender),
+            download_audio_space: (message, sender) => deps.downloadAudioSpace(message.data || {}, sender),
             translate_tweet: async (message) => {
                 const id = message.data?.tweetId || String(message.data?.url || "").match(/\/status\/(\d+)/)?.[1] || "";
                 const result = await deps.translateTweet(id);

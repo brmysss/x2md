@@ -149,7 +149,7 @@ test("tweet enrichment uses GraphQL before every fallback", async () => {
     assert.deepEqual(result.data.poll_data, { options: [] });
 });
 
-test("an empty GraphQL reply chain clears an unreliable DOM thread", async () => {
+test("an empty GraphQL reply chain preserves the captured DOM thread", async () => {
     const result = await orchestrateTweetFallback({
         url: "https://x.com/u/status/42",
         text: "dom",
@@ -160,7 +160,7 @@ test("an empty GraphQL reply chain clears an unreliable DOM thread", async () =>
         oembed: async () => null,
     });
 
-    assert.deepEqual(result.data.thread_tweets, []);
+    assert.deepEqual(result.data.thread_tweets, [{ text: "unrelated same-author reply" }]);
 });
 
 test("tweet enrichment falls back GraphQL -> oEmbed -> DOM", async () => {

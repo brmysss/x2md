@@ -629,6 +629,7 @@ function parseLegacyTweet(result, userLegacy, options = {}) {
     const images = [];
     const imageAltTexts = {};
     const videos = [];
+    const hlsPlaylists = [];
     const videoDurations = [];
     const media = [];
     if (legacy.extended_entities?.media) media.push(...legacy.extended_entities.media);
@@ -653,6 +654,8 @@ function parseLegacyTweet(result, userLegacy, options = {}) {
                 if (isMeaningfulImageAltText(altText)) imageAltTexts[imageUrl] = altText;
             }
             const bestVariant = selectBestMp4Variant(m.video_info?.variants);
+            const hlsVariant = (m.video_info?.variants || []).find((variant) => variant?.content_type === "application/x-mpegURL");
+            if (hlsVariant?.url) hlsPlaylists.push(hlsVariant.url);
             if (bestVariant?.url) {
                 videos.push(bestVariant.url);
                 if (m.video_info?.duration_millis) {
@@ -670,12 +673,22 @@ function parseLegacyTweet(result, userLegacy, options = {}) {
     const author = decodeXHtmlEntities(userLegacy?.name || "");
     const handle = userLegacy?.screen_name ? "@" + userLegacy.screen_name : "";
     const published = legacy.created_at || "";
+    const card = tweet?.card || result?.card || legacy.card;
+    const cardValues = Object.fromEntries((card?.legacy?.binding_values || card?.binding_values || []).map((item) => [
+        String(item?.key || ""),
+        String(item?.value?.string_value ?? item?.value?.scribe_key ?? item?.value ?? ""),
+    ]).filter(([key]) => key));
+    const audioSpaceId = String(card?.legacy?.name || card?.name || "").includes("audiospace")
+        ? String(cardValues.id || "")
+        : (legacy.entities?.urls || []).map((item) => String(item?.expanded_url || "").match(/\/i\/spaces\/([A-Za-z0-9_-]+)/)?.[1] || "").find(Boolean) || "";
 
     const parsed = {
         text,
         images: Array.from(new Set(images)),
         image_alt_texts: imageAltTexts,
         videos: Array.from(new Set(videos)),
+        hls_playlists: Array.from(new Set(hlsPlaylists)),
+        audio_space_id: audioSpaceId,
         videoDurations,
         author,
         handle,
@@ -1171,11 +1184,15 @@ async function enrichCaptureData(input) {
             images: mergeTweetImagesWithDomFallback(apiResult.images, tweetData.images),
             image_alt_texts: mergeImageAltTextMaps(tweetData.image_alt_texts, apiResult.image_alt_texts),
             videos: apiResult.videos || (tweetData.videos || []),
+            hls_playlists: apiResult.hls_playlists || (tweetData.hls_playlists || []),
+            audio_space_id: apiResult.audio_space_id || tweetData.audio_space_id || "",
             videoDurations: apiResult.videoDurations || (tweetData.videoDurations || []),
             author: apiResult.author || tweetData.author,
             handle: apiResult.handle || tweetData.handle,
             published: apiResult.published || tweetData.published,
-            thread_tweets: Array.isArray(apiResult.thread_tweets) ? apiResult.thread_tweets : (tweetData.thread_tweets || []),
+            thread_tweets: Array.isArray(apiResult.thread_tweets) && apiResult.thread_tweets.length
+                ? apiResult.thread_tweets
+                : (tweetData.thread_tweets || []),
             quote_tweet: apiResult.quote_tweet || tweetData.quote_tweet || null,
             x_article_api: apiResult.x_article_api || tweetData.x_article_api || null,
             poll_data: apiResult.poll_data || tweetData.poll_data || null,
